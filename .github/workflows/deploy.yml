@@ -31,6 +31,7 @@ jobs:
         env:
           VITE_REMOTE_BASE_URL: ${{ secrets.VITE_REMOTE_BASE_URL }}
           VITE_REMOTE_API_SECRET: ${{ secrets.VITE_REMOTE_API_SECRET }}
+          VITE_PUBLIC_BASE_PATH: ${{ vars.VITE_PUBLIC_BASE_PATH || '/Portal/' }}
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
