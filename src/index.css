@@ -1,0 +1,210 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* CSS Variables for Color Theming */
+:root {
+  /* Cores principais */
+  --color-primary: #7c3aed;
+  --color-primary-hover: #6d28d9;
+  --color-secondary: #a855f7;
+  --color-accent: #06b6d4;
+
+  /* Neutros claros */
+  --bg-base: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-hover: #f1f5f9;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --border-color: #e2e8f0;
+
+  /* Sombras */
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+.highlight {
+  box-shadow: 0 0 0 2px var(--color-primary) inset;
+}
+
+/* Active list row utility */
+.is-active {
+  background-color: var(--bg-surface-hover);
+  box-shadow: inset 0 0 0 2px var(--color-primary);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  background-color: var(--bg-base);
+}
+
+/* Line clamp utilities */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+
+.dark {
+  /* Cores principais dark */
+  --color-primary: #8b5cf6;
+  --color-primary-hover: #a78bfa;
+  --color-secondary: #a855f7;
+  --color-accent: #22d3ee;
+
+  /* Neutros escuros */
+  --bg-base: #0b1220;
+  /* único fundo base para evitar faixas */
+  --bg-surface: #0b1220;
+  /* igual ao base para não haver segunda cor */
+  --bg-surface-hover: #121a2b;
+  /* leve variação apenas em hover/ativo */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+}
+
+/* Classes utilitárias */
+.bg-theme-base {
+  background-color: var(--bg-base);
+}
+
+.bg-theme-surface {
+  background-color: var(--bg-surface);
+}
+
+.bg-theme-surface-hover {
+  background-color: var(--bg-surface-hover);
+}
+
+.text-theme-primary {
+  color: var(--text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--text-secondary);
+}
+
+.text-theme-muted {
+  color: var(--text-muted);
+}
+
+.border-theme {
+  border-color: var(--border-color);
+}
+
+/* Inputs: placeholder and text color aligned with theme */
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-muted);
+}
+
+input,
+textarea,
+select {
+  color: var(--text-primary);
+}
+
+/* Cursor pointer em elementos interativos */
+button,
+a[href],
+[role="button"],
+input[type="checkbox"],
+input[type="radio"],
+summary {
+  cursor: pointer;
+}
+
+.btn-primary {
+  background-color: var(--color-primary);
+  color: white;
+  transition: background-color 0.2s;
+}
+
+.btn-primary:hover {
+  background-color: var(--color-primary-hover);
+}
+
+/* Softer, more visible secondary button */
+.btn-soft {
+  background: color-mix(in srgb, var(--color-primary) 13%, var(--bg-base));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 35%, var(--border-color));
+  color: var(--text-primary);
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.btn-soft:hover {
+  background: color-mix(in srgb, var(--color-primary) 20%, var(--bg-base));
+  border-color: color-mix(in srgb, var(--color-primary) 45%, var(--border-color));
+}
+
+/* React DatePicker theming */
+/* React DatePicker theming with high specificity */
+.themed-datepicker.react-datepicker,
+.themed-datepicker .react-datepicker__header {
+  background-color: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.themed-datepicker .react-datepicker__current-month,
+.themed-datepicker .react-datepicker-time__header,
+.themed-datepicker .react-datepicker-year-header {
+  color: var(--text-primary) !important;
+}
+
+.themed-datepicker .react-datepicker__day-name,
+.themed-datepicker .react-datepicker__day,
+.themed-datepicker .react-datepicker__month-text {
+  color: var(--text-primary) !important;
+}
+
+.themed-datepicker .react-datepicker__day:hover,
+.themed-datepicker .react-datepicker__month-text:hover {
+  background-color: var(--bg-surface-hover) !important;
+}
+
+.themed-datepicker .react-datepicker__day--selected,
+.themed-datepicker .react-datepicker__month-text--selected,
+.themed-datepicker .react-datepicker__day--keyboard-selected,
+.themed-datepicker .react-datepicker__month-text--keyboard-selected {
+  background-color: var(--color-primary) !important;
+  color: #fff !important;
+}
+
+.themed-datepicker .react-datepicker__day--in-range,
+.themed-datepicker .react-datepicker__day--in-selecting-range,
+.themed-datepicker .react-datepicker__day--selecting-range-start,
+.themed-datepicker .react-datepicker__day--selecting-range-end {
+  background-color: var(--color-primary-hover) !important;
+  color: #fff !important;
+}
+
+/* Popper container */
+.themed-datepicker-popper {
+  z-index: 50;
+  /* above cards */
+}
+
+.themed-datepicker .react-datepicker__navigation-icon::before {
+  border-color: var(--text-secondary) !important;
+}
+
+.themed-datepicker .react-datepicker__triangle {
+  border-bottom-color: var(--bg-surface) !important;
+}
