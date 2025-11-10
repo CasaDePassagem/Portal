@@ -587,7 +587,7 @@ function handleAuthLogin(body, e){
 
   sendEmail({
     to: u.email,
-    subject: 'Código de verificação - Itinerário Extensionista',
+    subject: 'Código de verificação - Portal Casa de Apoio',
     htmlBody: loginOtpEmailHtml(otpCode),
     textBody: 'Seu código de verificação é: '+otpCode+'\nEle expira em 5 minutos.',
   });
@@ -697,7 +697,7 @@ function handleAuthPasswordResetRequest(body){
 
   sendEmail({
     to: user.email,
-    subject: 'Redefinição de senha - Itinerário Extensionista',
+    subject: 'Redefinição de senha - Portal Casa de Apoio',
     htmlBody: resetOtpEmailHtml(otpCode, link),
     textBody: 'Seu código para redefinir a senha é: '+otpCode+'\nEle expira em 10 minutos.\n'+(link ? 'Abra: '+link : ''),
   });
@@ -777,7 +777,7 @@ function handleAdminOtpRequest(body, e){
   });
   sendEmail({
     to: actor.email,
-    subject: 'Confirmação de ação - Itinerário Extensionista',
+    subject: 'Confirmação de ação - Portal Casa de Apoio',
     htmlBody: adminOtpEmailHtml(code, purpose),
     textBody: 'Código para confirmar a ação "'+purpose+'": '+code+'\nVálido por 5 minutos.',
   });
@@ -874,7 +874,7 @@ function sendEmail({ to, subject, htmlBody, textBody }){
     to,
     subject,
     htmlBody,
-    name: 'Itinerário Extensionista',
+    name: 'Suporte Casa de Apoio',
     body: textBody || ' ',
   };
   MailApp.sendEmail(payload);

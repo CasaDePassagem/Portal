@@ -1,4 +1,4 @@
-# Itinerário Extensionista 01
+# Portal Casa de Apoio
 
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=fff)
@@ -37,7 +37,7 @@
 ## Screenshots
 
 <p align="center">
-  <img src="./public/screenshots/home.png" alt="Home - Itinerário Extensionista" width="280" />
+  <img src="./public/screenshots/home.png" alt="Home - Portal Casa de Apoio" width="280" />
   <img src="./public/screenshots/tutorial.png" alt="Dicas de currículo" width="280" />
   <img src="./public/screenshots/preview.png" alt="Gerador de currículo com preview" width="280" />
 </p>

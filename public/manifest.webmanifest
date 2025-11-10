@@ -1,9 +1,9 @@
 {
-  "name": "Itinerário Extensionista 01",
-  "short_name": "Itinerário",
+  "name": "Portal Casa de Apoio",
+  "short_name": "Portal",
   "description": "Mini cursos, painel administrativo e gerador de currículo.",
-  "start_url": "/Itnerario-Extensionista1/",
-  "scope": "/Itnerario-Extensionista1/",
+  "start_url": "/Portal/",
+  "scope": "/Portal/",
   "display": "standalone",
   "background_color": "#0b1220",
   "theme_color": "#7c3aed",
