@@ -206,6 +206,7 @@
 |----------|-----------|---------|
 | `VITE_REMOTE_BASE_URL` | URL base do Apps Script. Em dev pode ser `/api` (proxy). | `/api` ou `https://script.google.com/macros/s/.../exec` |
 | `VITE_REMOTE_API_SECRET` | Mesmo valor configurado em `API_SECRET` no Apps Script. | `d3d3e6f4...` |
+| `VITE_PUBLIC_BASE_PATH` | Caminho público usado no deploy (GitHub Pages costuma ser `/<nome-do-repo>/`). Use `/` para domínios raiz. | `/Portal/` |
 
 As amostras (`.env.local`, `.env.production.local`) já estão preenchidas com `/api` e um segredo placeholder.
 
