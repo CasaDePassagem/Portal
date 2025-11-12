@@ -490,6 +490,10 @@ export const ResumeForm = () => {
                                                     placeholderText="MM/AAAA"
                                                     calendarClassName="themed-datepicker"
                                                     popperClassName="themed-datepicker-popper"
+                                                    showYearDropdown
+                                                    dropdownMode='select'
+                                                    yearDropdownItemNumber={50}
+                                                    scrollableYearDropdown
                                                 />
                                             </div>
                                             <div>
@@ -512,6 +516,10 @@ export const ResumeForm = () => {
                                                     disabled={exp.current}
                                                     calendarClassName="themed-datepicker"
                                                     popperClassName="themed-datepicker-popper"
+                                                    showYearDropdown
+                                                    dropdownMode='select'
+                                                    yearDropdownItemNumber={50}
+                                                    scrollableYearDropdown
                                                 />
                                             </div>
                                             <div className="flex items-center md:items-end md:pl-2">
@@ -659,6 +667,10 @@ export const ResumeForm = () => {
                                                     placeholderText="MM/AAAA"
                                                     calendarClassName="themed-datepicker"
                                                     popperClassName="themed-datepicker-popper"
+                                                    showYearDropdown
+                                                    dropdownMode='select'
+                                                    yearDropdownItemNumber={50}
+                                                    scrollableYearDropdown
                                                 />
                                             </div>
                                             <div>
@@ -681,6 +693,10 @@ export const ResumeForm = () => {
                                                     disabled={edu.current}
                                                     calendarClassName="themed-datepicker"
                                                     popperClassName="themed-datepicker-popper"
+                                                    showYearDropdown
+                                                    dropdownMode='select'
+                                                    yearDropdownItemNumber={50}
+                                                    scrollableYearDropdown
                                                 />
                                             </div>
                                             <div className="flex items-end">

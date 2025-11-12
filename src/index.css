@@ -164,7 +164,11 @@ summary {
 
 .themed-datepicker .react-datepicker__current-month,
 .themed-datepicker .react-datepicker-time__header,
-.themed-datepicker .react-datepicker-year-header {
+.themed-datepicker .react-datepicker-year-header,
+.themed-datepicker .react-datepicker__month-dropdown,
+.themed-datepicker .react-datepicker__year-dropdown,
+.themed-datepicker .react-datepicker__month-option,
+.themed-datepicker .react-datepicker__year-option {
   color: var(--text-primary) !important;
 }
 

@@ -19,7 +19,8 @@ import {
   type DraggableProvided,
   type DraggableProvidedDragHandleProps,
 } from '@hello-pangea/dnd';
-import DatePicker from 'react-datepicker';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import { ptBR } from 'date-fns/locale/pt-BR';
 import {
   archiveNotebookField,
   createNotebookField,
@@ -41,6 +42,8 @@ import { ParticipantFieldBuilderModal } from './ParticipantFieldBuilderModal';
 import { ParticipantPageModal } from './ParticipantPageModal';
 import { ArchivedFieldsPanel } from './ArchivedFieldsPanel';
 import { DatePickerPortal } from '../shared/DatePickerPortal';
+
+registerLocale('pt-BR', ptBR);
 
 type ValueState = {
   id?: string;
@@ -280,6 +283,9 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
   const [editingMap, setEditingMap] = useState<Record<string, boolean>>({});
   const [pageModalMode, setPageModalMode] = useState<'create' | 'edit'>('create');
   const [pageEditing, setPageEditing] = useState<ParticipantCustomPage | null>(null);
+  const [fieldSearch, setFieldSearch] = useState('');
+  const [fieldModalMode, setFieldModalMode] = useState<'create' | 'edit'>('create');
+  const [fieldEditing, setFieldEditing] = useState<ParticipantCustomField | null>(null);
 
   const activePages = useMemo(
     () =>
@@ -323,7 +329,17 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
     [activeFields, activePageNormalized],
   );
 
-  const displayFields = isFieldOrdering ? fieldOrderingItems : visibleFields;
+  const normalizedFieldSearch = fieldSearch.trim().toLowerCase();
+  const displayFieldsBase = isFieldOrdering ? fieldOrderingItems : visibleFields;
+  const displayFields = useMemo(() => {
+    if (isFieldOrdering) return displayFieldsBase;
+    if (!normalizedFieldSearch) return displayFieldsBase;
+    return displayFieldsBase.filter(
+      (field) =>
+        field.label.toLowerCase().includes(normalizedFieldSearch) ||
+        field.description?.toLowerCase().includes(normalizedFieldSearch),
+    );
+  }, [displayFieldsBase, normalizedFieldSearch, isFieldOrdering]);
   const displayPages = isPageOrdering ? pageOrderingItems : activePages;
 
   useEffect(() => {
@@ -362,6 +378,9 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
       setEditingMap({});
       setPageModalMode('create');
       setPageEditing(null);
+      setFieldSearch('');
+      setFieldModalMode('create');
+      setFieldEditing(null);
     };
   }, [isOpen, participant]);
 
@@ -572,9 +591,11 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
       if (prev) {
         setFieldOrderingItems([]);
         setFieldOrderingLoading(false);
+        setFieldSearch('');
         return false;
       }
       setEditingMap({});
+      setFieldSearch('');
       setFieldOrderingItems(visibleFields);
       return true;
     });
@@ -584,6 +605,7 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
     setFieldOrderingItems([]);
     setFieldOrderingLoading(false);
     setIsFieldOrdering(false);
+    setFieldSearch('');
   };
 
   const handleFieldDragEnd = (result: DropResult) => {
@@ -654,6 +676,11 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
     await createNotebookField(draft);
   };
 
+  const handleUpdateFieldDefinition = async (id: string, draft: Parameters<typeof createNotebookField>[0]) => {
+    setGlobalError(null);
+    await updateNotebookField(id, draft);
+  };
+
   const handleChangeFieldPage = async (fieldId: string, pageValue: string) => {
     try {
       const pageId = pageValue === DEFAULT_PAGE_ID ? null : pageValue;
@@ -709,6 +736,24 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
       setGlobalError(message);
       throw error instanceof Error ? error : new Error(message);
     }
+  };
+
+  const handleOpenCreateField = () => {
+    setFieldModalMode('create');
+    setFieldEditing(null);
+    setIsFieldModalOpen(true);
+  };
+
+  const handleOpenEditFieldDefinition = (field: ParticipantCustomField) => {
+    setFieldModalMode('edit');
+    setFieldEditing(field);
+    setIsFieldModalOpen(true);
+  };
+
+  const handleCloseFieldModal = () => {
+    setIsFieldModalOpen(false);
+    setFieldModalMode('create');
+    setFieldEditing(null);
   };
 
   const handleUpdatePage = async (pageId: string, draft: Parameters<typeof createNotebookPage>[0]) => {
@@ -838,7 +883,7 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
         <div
           ref={innerRef}
           {...rootProps}
-          className={`w-full border border-dashed border-theme rounded-xl px-4 py-3 bg-theme-base flex items-center justify-between text-sm ${isDragging ? 'shadow-md border-blue-400' : ''
+          className={`w-full border border-dashed border-theme rounded-xl px-4 py-3 bg-theme-base flex items-center justify-between gap-4 text-sm ${isDragging ? 'shadow-md border-blue-400' : ''
             }`}
         >
           <div className='flex flex-col min-w-0'>
@@ -847,13 +892,29 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
               <span className='text-xs text-theme-secondary whitespace-pre-line text-pretty'>{field.description}</span>
             )}
           </div>
-          <span
-            className='px-2 py-1 rounded-lg border border-theme text-xs text-theme-secondary cursor-grab active:cursor-grabbing flex items-center gap-1.5'
-            {...(dragHandleProps ?? {})}
-          >
-            <GripVertical className='w-3.5 h-3.5' />
-            Mover
-          </span>
+          <div className='flex items-center gap-2'>
+            <button
+              type='button'
+              onClick={() => handleOpenEditFieldDefinition(field)}
+              className='px-2.5 py-1.5 rounded-lg border border-theme text-xs text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover transition-colors'
+            >
+              Editar campo
+            </button>
+            <button
+              type='button'
+              onClick={() => handleArchiveFieldClick(field.id)}
+              className='px-2.5 py-1.5 rounded-lg border border-theme text-xs text-red-500 hover:bg-red-500/10 transition-colors'
+            >
+              Arquivar
+            </button>
+            <span
+              className='px-2 py-1 rounded-lg border border-theme text-xs text-theme-secondary cursor-grab active:cursor-grabbing flex items-center gap-1.5'
+              {...(dragHandleProps ?? {})}
+            >
+              <GripVertical className='w-3.5 h-3.5' />
+              Mover
+            </span>
+          </div>
         </div>
       );
     }
@@ -886,15 +947,7 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
               className='px-3 py-1.5 rounded-lg border border-theme text-xs text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover transition-colors'
               disabled={isSaving}
             >
-              {isEditing ? 'Cancelar' : 'Editar'}
-            </button>
-            <button
-              type='button'
-              onClick={() => handleArchiveFieldClick(field.id)}
-              className='px-3 py-1.5 rounded-lg border border-theme text-xs text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover transition-colors'
-              disabled={isSaving}
-            >
-              Arquivar
+              {isEditing ? 'Cancelar' : 'Cadastrar'}
             </button>
           </div>
         </div>
@@ -934,12 +987,20 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                   selected={parseDateValue(draft)}
                   onChange={(value) => handleDateChange(field.id, value)}
                   dateFormat='dd/MM/yyyy'
+                  locale='pt-BR'
                   placeholderText='Selecionar data'
                   className='w-full px-3 py-2 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500'
+                  calendarClassName='themed-datepicker'
+                  popperClassName='themed-datepicker-popper'
                   popperContainer={({ children }) => (
                     <DatePickerPortal>{children}</DatePickerPortal>
                   )}
                   disabled={isSaving}
+                  showMonthDropdown
+                  showYearDropdown
+                  dropdownMode='select'
+                  yearDropdownItemNumber={100}
+                  scrollableYearDropdown
                 />
                 <Calendar className='w-4 h-4 text-theme-secondary' />
               </div>
@@ -1016,8 +1077,8 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                 type='button'
                 onClick={() => handleSaveValue(field)}
                 className={`px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 ${isDirty
-                    ? 'bg-blue-500 text-white hover:bg-blue-600'
-                    : 'bg-theme-surface text-theme-muted cursor-not-allowed opacity-60'
+                  ? 'bg-blue-500 text-white hover:bg-blue-600'
+                  : 'bg-theme-surface text-theme-muted cursor-not-allowed opacity-60'
                   }`}
                 disabled={!isDirty || isSaving}
               >
@@ -1078,21 +1139,31 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                       Campos arquivados
                     </button>
                   )}
-                  <button
-                    type='button'
-                    onClick={handleToggleFieldOrdering}
-                    disabled={visibleFields.length <= 1}
-                    className={`px-3 py-2 rounded-lg border text-sm flex items-center gap-2 transition-colors ${isFieldOrdering
+                  <div className='flex items-center gap-2'>
+                    <input
+                      type='search'
+                      value={fieldSearch}
+                      onChange={(event) => setFieldSearch(event.target.value)}
+                      placeholder={isFieldOrdering ? 'Busque desativado' : 'Buscar campo'}
+                      disabled={isFieldOrdering}
+                      className='px-3 py-2 rounded-lg border border-theme bg-theme-base text-sm min-w-[200px] focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:opacity-50'
+                    />
+                    <button
+                      type='button'
+                      onClick={handleToggleFieldOrdering}
+                      disabled={visibleFields.length <= 1}
+                      className={`px-3 py-2 rounded-lg border text-sm flex items-center gap-2 transition-colors ${isFieldOrdering
                         ? 'border-blue-500 text-blue-500 bg-blue-500/10'
                         : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
-                      } disabled:opacity-60`}
-                  >
-                    <LayoutGrid size={16} />
-                    Organizar campos
-                  </button>
+                        } disabled:opacity-60`}
+                    >
+                      <LayoutGrid size={16} />
+                      Organizar campos
+                    </button>
+                  </div>
                   <button
                     type='button'
-                    onClick={() => setIsFieldModalOpen(true)}
+                    onClick={handleOpenCreateField}
                     className='px-3 py-2 rounded-lg bg-blue-500 text-white text-sm flex items-center gap-2 hover:bg-blue-600 transition-colors'
                   >
                     <Plus size={16} />
@@ -1116,8 +1187,8 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                       type='button'
                       onClick={() => handleSelectPage(DEFAULT_PAGE_ID)}
                       className={`whitespace-nowrap px-3 py-1.5 rounded-full border transition-colors ${activePageId === DEFAULT_PAGE_ID
-                          ? 'border-blue-500 text-blue-500 bg-blue-500/10'
-                          : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
+                        ? 'border-blue-500 text-blue-500 bg-blue-500/10'
+                        : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
                         }`}
                     >
                       Geral
@@ -1145,8 +1216,8 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                                       type='button'
                                       onClick={() => handleSelectPage(page.id)}
                                       className={`whitespace-nowrap px-3 py-1.5 rounded-full border transition-colors flex items-center gap-2 ${activePageId === page.id
-                                          ? 'border-blue-500 text-blue-500 bg-blue-500/10'
-                                          : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
+                                        ? 'border-blue-500 text-blue-500 bg-blue-500/10'
+                                        : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
                                         } ${isPageOrdering ? 'cursor-grab active:cursor-grabbing' : ''}`}
                                       {...(isPageOrdering ? dragProvided.dragHandleProps : {})}
                                     >
@@ -1169,8 +1240,8 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                       onClick={handleTogglePageOrdering}
                       disabled={activePages.length <= 1}
                       className={`px-3 py-1.5 rounded-lg border text-xs flex items-center gap-2 transition-colors ${isPageOrdering
-                          ? 'border-blue-500 text-blue-500 bg-blue-500/10'
-                          : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
+                        ? 'border-blue-500 text-blue-500 bg-blue-500/10'
+                        : 'border-theme text-theme-secondary hover:text-theme-primary hover:bg-theme-surface-hover'
                         } disabled:opacity-60`}
                     >
                       <GripVertical size={14} />
@@ -1279,7 +1350,7 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
                         </p>
                         <button
                           type='button'
-                          onClick={() => setIsFieldModalOpen(true)}
+                          onClick={handleOpenCreateField}
                           className='px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 transition-colors inline-flex items-center gap-2'
                         >
                           <Plus size={16} />
@@ -1340,8 +1411,11 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
 
       <ParticipantFieldBuilderModal
         isOpen={isFieldModalOpen}
-        onClose={() => setIsFieldModalOpen(false)}
-        onSubmit={handleCreateField}
+        mode={fieldModalMode}
+        initialField={fieldEditing}
+        onClose={handleCloseFieldModal}
+        onCreate={handleCreateField}
+        onUpdate={handleUpdateFieldDefinition}
         pageOptions={pageOptions}
         defaultPageId={activePageId}
       />

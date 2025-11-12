@@ -1,15 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X } from 'lucide-react';
-import DatePicker from 'react-datepicker';
+import DatePicker, { registerLocale } from 'react-datepicker';
+import { ptBR } from 'date-fns/locale/pt-BR';
 import type { CustomFieldDraft } from '../../lib/customNotebook';
-import type { ParticipantCustomFieldType } from '../../lib/types';
+import type { ParticipantCustomField, ParticipantCustomFieldType } from '../../lib/types';
 import { DatePickerPortal } from '../shared/DatePickerPortal';
+
+registerLocale('pt-BR', ptBR);
 
 type Props = {
   isOpen: boolean;
+  mode: 'create' | 'edit';
+  initialField?: ParticipantCustomField | null;
   onClose: () => void;
-  onSubmit: (draft: CustomFieldDraft) => Promise<void>;
+  onCreate: (draft: CustomFieldDraft) => Promise<void>;
+  onUpdate: (id: string, draft: CustomFieldDraft) => Promise<void>;
   pageOptions: Array<{ id: string; label: string }>;
   defaultPageId?: string;
 };
@@ -36,7 +42,16 @@ const FIELD_OPTIONS: Array<{ value: ParticipantCustomFieldType; label: string; d
   { value: 'url', label: 'URL', description: 'Links de redes sociais ou sites úteis.' },
 ];
 
-export function ParticipantFieldBuilderModal({ isOpen, onClose, onSubmit, pageOptions, defaultPageId }: Props) {
+export function ParticipantFieldBuilderModal({
+  isOpen,
+  onClose,
+  onCreate,
+  onUpdate,
+  pageOptions,
+  defaultPageId,
+  mode,
+  initialField,
+}: Props) {
   const [label, setLabel] = useState('');
   const [type, setType] = useState<ParticipantCustomFieldType>('text');
   const [description, setDescription] = useState('');
@@ -65,9 +80,44 @@ export function ParticipantFieldBuilderModal({ isOpen, onClose, onSubmit, pageOp
 
   useEffect(() => {
     if (!isOpen) return;
-    const initial = defaultPageId ?? pageOptions[0]?.id ?? '__general__';
-    setSelectedPageId(initial);
-  }, [isOpen, pageOptions, defaultPageId]);
+    if (mode === 'edit' && initialField) {
+      setLabel(initialField.label);
+      setType(initialField.type);
+      setDescription(initialField.description ?? '');
+      setSelectedPageId(initialField.pageId ?? '__general__');
+      if (initialField.type === 'text' || initialField.type === 'textarea') {
+        const max = (initialField.constraints as { maxLength?: number } | undefined)?.maxLength;
+        setMaxLength(typeof max === 'number' ? max : '');
+        setNumberRange({});
+        setDateRange({});
+      } else if (initialField.type === 'number') {
+        const constraints = initialField.constraints as NumberRange | undefined;
+        setNumberRange({
+          min: typeof constraints?.min === 'number' ? constraints.min : undefined,
+          max: typeof constraints?.max === 'number' ? constraints.max : undefined,
+        });
+        setMaxLength('');
+        setDateRange({});
+      } else if (initialField.type === 'date') {
+        const constraints = initialField.constraints as { min?: string; max?: string } | undefined;
+        setDateRange({
+          min: constraints?.min ? new Date(constraints.min) : undefined,
+          max: constraints?.max ? new Date(constraints.max) : undefined,
+        });
+        setMaxLength('');
+        setNumberRange({});
+      } else {
+        setMaxLength('');
+        setNumberRange({});
+        setDateRange({});
+      }
+    } else {
+      const initial = defaultPageId ?? pageOptions[0]?.id ?? '__general__';
+      setSelectedPageId(initial);
+      resetState();
+      setSelectedPageId(initial);
+    }
+  }, [isOpen, pageOptions, defaultPageId, mode, initialField]);
 
   const handleClose = () => {
     if (submitting) return;
@@ -116,14 +166,19 @@ export function ParticipantFieldBuilderModal({ isOpen, onClose, onSubmit, pageOp
     setError(null);
     setSubmitting(true);
     try {
-      await onSubmit({
+      const payload: CustomFieldDraft = {
         label: trimmed,
         type,
         description: description.trim() || undefined,
         constraints: buildConstraints(),
         pageId: selectedPageId === '__general__' ? null : selectedPageId,
         isRequired: false,
-      });
+      };
+      if (mode === 'edit' && initialField) {
+        await onUpdate(initialField.id, payload);
+      } else {
+        await onCreate(payload);
+      }
       resetState();
       onClose();
     } catch (err) {
@@ -152,7 +207,9 @@ export function ParticipantFieldBuilderModal({ isOpen, onClose, onSubmit, pageOp
           >
             <div className="flex items-start justify-between gap-6">
               <div>
-                <h3 className="text-xl font-semibold">Novo campo personalizado</h3>
+                <h3 className="text-xl font-semibold">
+                  {mode === 'edit' ? 'Editar campo personalizado' : 'Novo campo personalizado'}
+                </h3>
                 <p className="text-sm text-theme-secondary mt-1">
                   Adicione registros específicos para complementar o fichário do participante.
                 </p>
@@ -252,25 +309,27 @@ export function ParticipantFieldBuilderModal({ isOpen, onClose, onSubmit, pageOp
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <label className="text-sm font-medium">Data mínima</label>
-                  <DatePicker
-                    selected={dateRange.min ?? null}
-                    onChange={(value) => setDateRange((prev) => ({ ...prev, min: value }))}
-                    dateFormat="dd/MM/yyyy"
-                    className="w-full px-3 py-2 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholderText="Sem limite"
-                    popperContainer={DatePickerPortal}
-                  />
+                      <DatePicker
+                        selected={dateRange.min ?? null}
+                        onChange={(value) => setDateRange((prev) => ({ ...prev, min: value }))}
+                        dateFormat="dd/MM/yyyy"
+                        locale="pt-BR"
+                        className="w-full px-3 py-2 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholderText="Sem limite"
+                        popperContainer={DatePickerPortal}
+                      />
                     </div>
                     <div className="space-y-1">
                       <label className="text-sm font-medium">Data máxima</label>
-                  <DatePicker
-                    selected={dateRange.max ?? null}
-                    onChange={(value) => setDateRange((prev) => ({ ...prev, max: value }))}
-                    dateFormat="dd/MM/yyyy"
-                    className="w-full px-3 py-2 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholderText="Sem limite"
-                    popperContainer={DatePickerPortal}
-                  />
+                      <DatePicker
+                        selected={dateRange.max ?? null}
+                        onChange={(value) => setDateRange((prev) => ({ ...prev, max: value }))}
+                        dateFormat="dd/MM/yyyy"
+                        locale="pt-BR"
+                        className="w-full px-3 py-2 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholderText="Sem limite"
+                        popperContainer={DatePickerPortal}
+                      />
                     </div>
                   </div>
                 )}
@@ -323,7 +382,7 @@ export function ParticipantFieldBuilderModal({ isOpen, onClose, onSubmit, pageOp
                   disabled={submitting}
                   className="px-4 py-2 rounded-lg bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 flex items-center gap-2"
                 >
-                  {submitting ? 'Salvando...' : 'Adicionar campo'}
+                  {submitting ? 'Salvando...' : mode === 'edit' ? 'Salvar alterações' : 'Adicionar campo'}
                 </button>
               </div>
             </form>

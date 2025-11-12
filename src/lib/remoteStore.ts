@@ -91,7 +91,11 @@ async function fetchNonce(): Promise<string | null> {
   return json.data?.nonce ?? null;
 }
 
-async function postAction<T>(body: Record<string, unknown>, opts?: { requireNonce?: boolean }) {
+async function postAction<T>(
+  body: Record<string, unknown>,
+  opts?: { requireNonce?: boolean },
+  attempt = 0,
+) {
   if (!isRemoteEnabled()) return null;
   const payload = { ...body };
 
@@ -111,14 +115,27 @@ async function postAction<T>(body: Record<string, unknown>, opts?: { requireNonc
   }
 
   const query = withQuery({ secret: API_SECRET });
-  const resp = await fetch(`${BASE_URL}?${query}`, {
-    method: 'POST',
-    mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
-    body: JSON.stringify(payload),
-  });
-  const json = await parseResponse<T>(resp);
-  return json;
+  try {
+    const resp = await fetch(`${BASE_URL}?${query}`, {
+      method: 'POST',
+      mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify(payload),
+    });
+    const json = await parseResponse<T>(resp);
+    return json;
+  } catch (error) {
+    const err = error as Error & { status?: number };
+    const isBusy = err?.message === 'busy' || err?.status === 503;
+    if (isBusy && attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, 300 * (attempt + 1)));
+      return postAction(body, opts, attempt + 1);
+    }
+    if (isBusy) {
+      err.message = 'Serviço ocupado. Tente novamente em instantes.';
+    }
+    throw err;
+  }
 }
 
 export async function remoteLoginInit(email: string, password: string) {
