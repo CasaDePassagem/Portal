@@ -1,4 +1,4 @@
-const LOGO_URL = '/images/fsg-star.png';
+const LOGO_URL = `${import.meta.env.BASE_URL ?? '/'}images/fsg-star.png`;
 
 export const FSG_TEAM_MEMBERS = [
   'Pedro Bolson',
