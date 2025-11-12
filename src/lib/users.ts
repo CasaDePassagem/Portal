@@ -9,7 +9,7 @@ import {
   subscribeUsers,
   verifyPassword,
 } from './memoryStore';
-import { hydrateFromRemote } from './remoteSync';
+import { hydrateFromRemote, syncInBackground } from './remoteSync';
 import {
   isBackendAvailable,
   remoteChangePassword,
@@ -33,7 +33,7 @@ export type { UserRecord, UserRole } from './types';
 export interface CreateUserInput {
   email: string;
   fullName: string;
-  password: string;
+  password?: string;
   role?: UserRole;
   isActive?: boolean;
 }
@@ -110,26 +110,32 @@ export async function createUser(
   options?: { adminOtp?: { token: string; code: string } },
 ): Promise<UserRecord> {
   if (!input.email.trim()) throw new Error('Email é obrigatório');
-  if (input.password.length < 6) throw new Error('Senha deve ter pelo menos 6 caracteres');
+  const normalizedPassword = input.password?.trim() ?? '';
+  const backendOnline = isBackendAvailable();
+  if (!backendOnline && normalizedPassword.length < 6) {
+    throw new Error('Senha deve ter pelo menos 6 caracteres');
+  }
 
   const existing = findUserByEmail(input.email);
   if (existing) {
     throw new Error('Já existe um usuário com este email');
   }
 
-  if (isBackendAvailable()) {
+  if (backendOnline) {
     const uid = typeof crypto !== 'undefined' && 'randomUUID' in crypto
       ? crypto.randomUUID()
       : `user-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     let hashedPassword: string | null = null;
-    try {
-      hashedPassword = await encodePasswordHash(input.password);
-    } catch (err) {
-      if ((err as Error)?.message === 'crypto_unavailable') {
-        console.warn('[createUser] WebCrypto indisponível; enviando senha para hashing no backend');
-        hashedPassword = null;
-      } else {
-        throw err;
+    if (normalizedPassword.length >= 6) {
+      try {
+        hashedPassword = await encodePasswordHash(normalizedPassword);
+      } catch (err) {
+        if ((err as Error)?.message === 'crypto_unavailable') {
+          console.warn('[createUser] WebCrypto indisponível; enviando senha para hashing no backend');
+          hashedPassword = null;
+        } else {
+          throw err;
+        }
       }
     }
     const remoteRecord: Record<string, unknown> = {
@@ -142,8 +148,12 @@ export async function createUser(
     if (hashedPassword) {
       remoteRecord.passwordHash = hashedPassword;
       remoteRecord.hashSenha = hashedPassword; // compatibilidade com backend
+      remoteRecord.hasPassword = true;
+    } else if (normalizedPassword.length >= 6) {
+      remoteRecord.password = normalizedPassword;
     } else {
-      remoteRecord.password = input.password;
+      remoteRecord.hasPassword = false;
+      remoteRecord.passwordHash = '';
     }
     await remoteCreateRecord(
       'users',
@@ -162,7 +172,7 @@ export async function createUser(
   const record = insertUser({
     email: input.email.trim(),
     fullName: input.fullName.trim() || input.email.trim(),
-    password: input.password,
+    password: normalizedPassword,
     role: input.role ?? 'user',
     isActive: input.isActive ?? false,
   });
@@ -204,7 +214,7 @@ export async function updateUser(uid: string, input: UpdateUserInput) {
 
   if (isBackendAvailable()) {
     await remoteUpdateRecord('users', uid, { ...patch } as Record<string, unknown>);
-    await hydrateFromRemote();
+    syncInBackground({ silent: true });
   }
 }
 
@@ -212,7 +222,7 @@ export async function deleteUser(uid: string, options?: { hard?: boolean }) {
   removeUser(uid);
   if (isBackendAvailable()) {
     await remoteDeleteRecord('users', uid, { hard: options?.hard ?? false });
-    await hydrateFromRemote();
+    syncInBackground({ silent: true });
   }
 }
 
@@ -224,7 +234,7 @@ export async function changeUserPassword(uid: string, currentPassword: string, n
   if (isBackendAvailable()) {
     await remoteChangePassword(currentPassword, newPassword);
     setUserPassword(uid, newPassword);
-    await hydrateFromRemote();
+    syncInBackground({ silent: true });
     return;
   }
 

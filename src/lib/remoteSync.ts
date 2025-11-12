@@ -17,6 +17,10 @@ import type {
 import { setLoading } from './loadingStore';
 import { getCachedData, setCachedData } from './cache';
 
+type SyncOptions = {
+  silent?: boolean;
+};
+
 type Snapshot = {
   users?: Array<Record<string, unknown>>;
   topics?: Array<Record<string, unknown>>;
@@ -37,19 +41,21 @@ function toDate(value: unknown): Date | undefined {
 }
 
 function normalizeUsers(rows: Array<Record<string, unknown>> = []) {
+  const toBoolean = (value: unknown): boolean => {
+    if (value === true || value === 'true' || value === '1' || value === 1) return true;
+    if (value === false || value === 'false' || value === '0' || value === 0 || value === null || value === undefined) return false;
+    return Boolean(value);
+  };
+
   return rows
-    .filter(row => row.uid && String(row.uid).trim() !== '') // Filtra vazios
+    .filter(row => row.uid && String(row.uid).trim() !== '')
     .map((row) => ({
       uid: String(row.uid ?? ''),
       email: String(row.email ?? ''),
       fullName: String(row.fullName ?? ''),
       role: (row.role === 'admin' ? 'admin' : 'user') as UserRole,
-      isActive: row.isActive === true || row.isActive === 'true' || String(row.isActive) === '1',
-      hasPassword:
-        row.hasPassword === true ||
-        row.hasPassword === 'true' ||
-        String(row.hasPassword || '') === '1' ||
-        Boolean(row.passwordHash),
+      isActive: toBoolean(row.isActive),
+      hasPassword: toBoolean(row.hasPassword),
       passwordHash:
         typeof row.passwordHash === 'string'
           ? row.passwordHash
@@ -306,19 +312,26 @@ export async function hydrateFromRemote() {
  * Versão leve: atualiza dados em background sem bloquear UI
  * Use após criar/editar itens para manter sincronizado
  */
-export async function syncInBackground() {
+export function syncInBackground(options?: SyncOptions) {
   if (!isBackendAvailable()) return;
 
   // Não mostra loading, não bloqueia
-  setTimeout(() => fetchAndUpdateData(), 50);
+  setTimeout(() => {
+    void fetchAndUpdateData(options);
+  }, 50);
 }
 
-async function fetchAndUpdateData() {
+async function fetchAndUpdateData(options?: SyncOptions) {
   try {
-    setLoading(true, 'Atualizando dados...');
+    const showLoading = !options?.silent;
+    if (showLoading) {
+      setLoading(true, 'Atualizando dados...');
+    }
     const snapshot = (await fetchDump()) as Snapshot | null;
     if (!snapshot) {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
       return;
     }
 
@@ -341,6 +354,7 @@ async function fetchAndUpdateData() {
         fullName: user.fullName,
         role: user.role,
         isActive: user.isActive,
+        hasPassword: user.hasPassword ?? Boolean(user.passwordHash),
         passwordHash: user.passwordHash,
         createdAt: (user.createdAt ?? new Date()).toISOString(),
         updatedAt: (user.updatedAt ?? new Date()).toISOString(),
@@ -433,9 +447,13 @@ async function fetchAndUpdateData() {
       lessons: snapshot.lessons || [],
     });
 
-    setLoading(false);
+    if (showLoading) {
+      setLoading(false);
+    }
   } catch (error) {
     console.error('Falha ao carregar dados remotos:', error);
-    setLoading(false);
+    if (!options?.silent) {
+      setLoading(false);
+    }
   }
 }

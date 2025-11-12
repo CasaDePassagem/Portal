@@ -882,7 +882,7 @@ export function exportStore(): DataStoreDump {
       fullName: user.fullName,
       role: user.role,
       isActive: user.isActive,
-      hasPassword: user.hasPassword ?? Boolean(user.passwordHash),
+      hasPassword: user.hasPassword,
       passwordHash: user.passwordHash,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
@@ -997,12 +997,23 @@ export function importStore(dump: DataStoreDump) {
     return {};
   };
 
-  store.users = dump.users.map((user) => ({
-    ...user,
-    hasPassword: user.hasPassword ?? Boolean((user as any).passwordHash),
-    createdAt: new Date(user.createdAt),
-    updatedAt: new Date(user.updatedAt),
-  }));
+  store.users = dump.users.map((user) => {
+    const toBoolean = (value: unknown): boolean => {
+      if (value === true || value === 'true' || value === '1' || value === 1) return true;
+      if (value === false || value === 'false' || value === '0' || value === 0 || value === null || value === undefined) return false;
+      return Boolean(value);
+    };
+
+    const resolvedHasPassword =
+      user.hasPassword !== undefined ? user.hasPassword : (user as { passwordHash?: string }).passwordHash;
+
+    return {
+      ...user,
+      hasPassword: toBoolean(resolvedHasPassword),
+      createdAt: new Date(user.createdAt),
+      updatedAt: new Date(user.updatedAt),
+    };
+  });
 
   store.topics = dump.topics.map((topic) => ({
     ...topic,

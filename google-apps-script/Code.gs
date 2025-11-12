@@ -8,7 +8,7 @@ const RECAPTCHA_SECRET = () => cfg('RECAPTCHA_SECRET');
 const SCHEMA = {
   users: {
     key: 'id',
-    headers: ['id','email','nomeCompleto','perfil','ativo','hashSenha','criadoEm','atualizadoEm'],
+    headers: ['id','email','nomeCompleto','perfil','ativo','hashSenha','criadoEm','atualizadoEm','temSenha'],
     validators: {
       id: s => str(s, 128),
       email: s => str((s||'').toLowerCase(), 256),
@@ -18,6 +18,7 @@ const SCHEMA = {
       hashSenha: s => str(s, 512),
       criadoEm: d => dateOrNow(d),
       atualizadoEm: d => dateOrNow(d),
+      temSenha: v => bool(v),
     }
   },
   topics: {
@@ -136,7 +137,7 @@ const SCHEMA = {
 };
 
 const LEGACY_HEADERS = {
-  users: ['uid','email','fullName','role','isActive','passwordHash','createdAt','updatedAt'],
+  users: ['uid','email','fullName','role','isActive','passwordHash','createdAt','updatedAt','hasPassword'],
   topics: ['id','name','category','color','order','coverImageUrl','coverImageAlt','createdAt','updatedAt'],
   contents: ['id','topicId','title','description','order','coverImageUrl','coverImageAlt','difficulty','createdAt','updatedAt'],
   lessons: ['id','contentId','title','youtubeUrl','order','description','createdAt','updatedAt'],
@@ -156,6 +157,7 @@ const FIELD_MAP = {
     passwordHash: 'hashSenha',
     createdAt: 'criadoEm',
     updatedAt: 'atualizadoEm',
+    hasPassword: 'temSenha',
   },
   topics: {
     name: 'nome',
@@ -896,6 +898,7 @@ function handleAuthInviteConfirm(body){
   const currentClient = fromSheetRecord('users', currentSheet);
   currentClient.passwordHash = hashed;
   currentClient.isActive = true;
+  currentClient.hasPassword = true;
   const updatedSheet = validateRecord('users', toSheetRecord('users', currentClient));
   const updatedKey = toSheetKey('users', 'updatedAt');
   if (headers.includes(updatedKey)) updatedSheet[updatedKey] = nowStr();
@@ -1127,9 +1130,15 @@ function handleCreate(body, e){
       clientRecord.passwordHash = encodeHash(String(clientRecord.password));
       delete clientRecord.password;
     }
-    if (!clientRecord.passwordHash) return buildResponse({ ok:false, error:'missing_password_or_hash' }, 400);
     if (clientRecord.role !== 'admin') clientRecord.role = 'user';
-    if (clientRecord.isActive === undefined) clientRecord.isActive = true;
+    const hasPassword = !!clientRecord.passwordHash;
+    clientRecord.hasPassword = hasPassword;
+    if (!hasPassword) {
+      clientRecord.passwordHash = '';
+      clientRecord.isActive = false;
+    } else if (clientRecord.isActive === undefined) {
+      clientRecord.isActive = true;
+    }
   }
 
   if (table === 'participants') {
@@ -1636,7 +1645,7 @@ function sanitizeUsers(rows){ return rows.map(sanitizeUser); }
 function sanitizeUser(u){
   if (!u) return {};
   const { passwordHash, hashSenha, ...safe } = u;
-  safe.hasPassword = Boolean(passwordHash || hashSenha);
+  safe.hasPassword = !!(passwordHash || hashSenha);
   return safe;
 }
 
@@ -1660,7 +1669,7 @@ function ensureSchemaNonDestructive(){
       .filter(Boolean);
     dateCols.forEach(col => sh.getRange(2, col, Math.max(1, sh.getMaxRows()-1), 1).setNumberFormat("yyyy-MM-dd HH:mm:ss"));
 
-    // users: validação de role + checkbox isActive
+    // users: validação de role + checkbox isActive + checkbox temSenha
     if (name === 'users') {
       const roleCol = headers.indexOf('perfil') + 1;
       if (roleCol > 0) {
@@ -1672,6 +1681,54 @@ function ensureSchemaNonDestructive(){
         const rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
         sh.getRange(2, activeCol, Math.max(1, sh.getMaxRows()-1), 1).setDataValidation(rule);
       }
+      const hasPwdCol = headers.indexOf('temSenha') + 1;
+      if (hasPwdCol > 0) {
+        const rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+        sh.getRange(2, hasPwdCol, Math.max(1, sh.getMaxRows()-1), 1).setDataValidation(rule);
+      }
+    }
+  });
+}
+
+/***** ================= CLEAN EMPTY ROWS ================= *****/
+function cleanEmptyRows(){
+  const ss = SpreadsheetApp.getActive();
+  Object.keys(SCHEMA).forEach(tableName => {
+    const sheet = ss.getSheetByName(tableName);
+    if (!sheet) return;
+    
+    const schema = SCHEMA[tableName];
+    if (!schema) return;
+    
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+    
+    const headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    const keyIndex = headers.indexOf(schema.key);
+    
+    if (keyIndex < 0) {
+      Logger.log(`Tabela ${tableName}: chave ${schema.key} não encontrada`);
+      return;
+    }
+    
+    // Pega todas as linhas até a última com dados
+    const allValues = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+    
+    // Identifica linhas sem chave primária (de BAIXO PRA CIMA para não bagunçar índices)
+    let deletedCount = 0;
+    for (let i = allValues.length - 1; i >= 0; i--) {
+      const keyValue = allValues[i][keyIndex];
+      const isEmpty = !keyValue || String(keyValue).trim() === '';
+      
+      if (isEmpty) {
+        const rowToDelete = i + 2; // +2 porque índice começa em 0 mas planilha em 2
+        sheet.deleteRow(rowToDelete);
+        deletedCount++;
+      }
+    }
+    
+    if (deletedCount > 0) {
+      Logger.log(`Tabela ${tableName}: ${deletedCount} linhas vazias removidas`);
     }
   });
 }

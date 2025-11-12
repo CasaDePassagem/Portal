@@ -23,6 +23,7 @@ import {
     deleteUser,
     type UserRecord
 } from '../lib/users';
+import { ConfirmDialog } from './ConfirmDialog';
 
 interface CreateUserModalProps {
     isOpen: boolean;
@@ -63,6 +64,7 @@ export function CreateUserModal({
     const [otpLoading, setOtpLoading] = useState(false);
     const [resendingInviteFor, setResendingInviteFor] = useState<string | null>(null);
     const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+    const [userPendingDeletion, setUserPendingDeletion] = useState<UserRecord | null>(null);
 
     useEffect(() => {
         if (!isOpen) {
@@ -70,11 +72,20 @@ export function CreateUserModal({
             return;
         }
         setListLoading(true);
-        const unsub = listenAllUsers((records) => {
-            setUsers(records);
+
+        // Força buscar usuários do backend SEMPRE que abre o modal
+        fetchAllUsers().then(() => {
+            const unsub = listenAllUsers((records) => {
+                setUsers(records);
+                setListLoading(false);
+            });
+            return unsub;
+        }).catch(err => {
+            console.error('Erro ao buscar usuários:', err);
             setListLoading(false);
         });
-        return () => unsub();
+
+        return () => { };
     }, [isOpen]);
 
     const filteredUsers = useMemo(() => {
@@ -90,13 +101,6 @@ export function CreateUserModal({
     const buildInviteBaseUrl = () => {
         const base = new URL(import.meta.env.BASE_URL || '/', window.location.origin);
         return base.toString().replace(/\/+$/, '');
-    };
-
-    const generateTempPassword = () => {
-        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-            return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
-        }
-        return `Temp-${Math.random().toString(36).slice(2, 10)}`;
     };
 
     const openCreateView = () => {
@@ -137,6 +141,7 @@ export function CreateUserModal({
         setOtpLoading(false);
         setResendingInviteFor(null);
         setDeletingUserId(null);
+        setUserPendingDeletion(null);
     };
 
     const handleClose = () => {
@@ -203,14 +208,12 @@ export function CreateUserModal({
         }
 
         setIsCreating(true);
-        const passwordForCreation = generateTempPassword();
         const baseUrl = buildInviteBaseUrl();
 
         try {
             await createUser({
                 email: normalizedEmail,
                 fullName: fullName || normalizedEmail,
-                password: passwordForCreation,
                 role: isAdmin ? 'admin' : 'user',
             }, {
                 adminOtp: {
@@ -310,11 +313,11 @@ export function CreateUserModal({
 
     const resendInvite = async (record: UserRecord) => {
         if (!record.email) {
-        setLocalError('Usuário sem e-mail não pode receber convite.');
-        onError('Usuário sem e-mail não pode receber convite.');
-        return;
-    }
-    setResendingInviteFor(record.uid);
+            setLocalError('Usuário sem e-mail não pode receber convite.');
+            onError('Usuário sem e-mail não pode receber convite.');
+            return;
+        }
+        setResendingInviteFor(record.uid);
         setLocalError('');
         setLocalSuccess('');
         try {
@@ -332,10 +335,15 @@ export function CreateUserModal({
         }
     };
 
-    const handleDeleteUser = async (record: UserRecord) => {
-        if (!window.confirm(`Remover ${record.fullName || record.email}? Esta ação não pode ser desfeita.`)) {
-            return;
-        }
+    const handleDeleteUser = (record: UserRecord) => {
+        setLocalError('');
+        setLocalSuccess('');
+        setUserPendingDeletion(record);
+    };
+
+    const confirmDeleteUser = async () => {
+        if (!userPendingDeletion) return;
+        const record = userPendingDeletion;
         setDeletingUserId(record.uid);
         setLocalError('');
         setLocalSuccess('');
@@ -357,7 +365,8 @@ export function CreateUserModal({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+        <>
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-theme-surface border border-theme rounded-2xl p-6 w-full max-w-5xl shadow-2xl dark:border-white/10 dark:bg-[#14141a]">
                 <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-3">
@@ -427,7 +436,7 @@ export function CreateUserModal({
                                 </div>
                                 <div className="relative w-full sm:w-auto">
                                     <input
-                                className="w-full sm:w-[260px] pl-9 pr-3 py-2 rounded-xl border border-theme bg-theme-base text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full sm:w-[260px] pl-9 pr-3 py-2 rounded-xl border border-theme bg-theme-base text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                                         placeholder="Buscar por nome ou email"
                                         value={search}
                                         onChange={(event) => setSearch(event.target.value)}
@@ -734,5 +743,15 @@ export function CreateUserModal({
                 </AnimatePresence>
             </div>
         </div>
+        <ConfirmDialog
+            isOpen={Boolean(userPendingDeletion)}
+            onClose={() => setUserPendingDeletion(null)}
+            onConfirm={confirmDeleteUser}
+            title="Remover usuário"
+            message={`Tem certeza que deseja remover ${userPendingDeletion?.fullName || userPendingDeletion?.email || 'este usuário'}? Esta ação não pode ser desfeita.`}
+            confirmText="Remover"
+            variant="danger"
+        />
+        </>
     );
 }
