@@ -50,7 +50,7 @@ export const Hero = () => {
                         <span className="relative bg-gradient-to-r from-violet-600 via-purple-600 to-cyan-600 bg-clip-text text-transparent">
                             novas áreas do digital
                             <motion.div
-                                className="absolute -bottom-2 left-0 right-0 h-1 rounded-full"
+                                className="absolute -bottom-2 left-0 right-0 h-1 rounded-full hidden sm:block"
                                 style={{ background: `linear-gradient(to right, var(--color-primary), var(--color-accent))` }}
                                 initial={{ scaleX: 0 }}
                                 animate={{ scaleX: 1 }}

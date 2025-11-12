@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { requestPasswordReset } from '../../lib/users';
+import { FsgSignature, FSG_TEAM_MEMBERS } from '../../components/FsgSignature';
+import InstantTooltip from '../../components/InstantTooltip';
 
 export function LoginPage() {
   const { signIn, confirmSignIn, cancelPendingLogin, pendingLogin } = useAuth();
@@ -23,6 +25,7 @@ export function LoginPage() {
   const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
 
   const from = (location.state as { from?: { pathname: string } })?.from?.pathname || '/dashboard';
+  const teamTooltip = `Alunos: ${FSG_TEAM_MEMBERS.join(' • ')}`;
 
   useEffect(() => {
     if (pendingLogin) {
@@ -111,6 +114,16 @@ export function LoginPage() {
 
   return (
     <div className="min-h-[100svh] flex items-center justify-center p-6 bg-theme-base relative">
+      <div className="absolute top-3 sm:top-4 left-4 z-10">
+        <InstantTooltip tooltip={teamTooltip} position="right">
+          <div className="hidden sm:block">
+            <FsgSignature />
+          </div>
+          <div className="flex sm:hidden">
+            <FsgSignature orientation="column" />
+          </div>
+        </InstantTooltip>
+      </div>
       <div className="w-full max-w-sm bg-theme-surface rounded-2xl border border-theme shadow-xl p-6">
         <h1 className="text-xl font-semibold mb-4 text-theme-primary">
           {stage === 'otp' ? 'Confirme o código' : 'Acesso Restrito'}

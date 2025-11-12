@@ -6,6 +6,7 @@ import { CreateUserModal } from './CreateUserModal';
 import { ChangePasswordModal } from './ChangePasswordModal';
 import { useAuth } from '../hooks/useAuth';
 import { hydrateFromRemote } from '../lib/remoteSync';
+import { FsgSignature, FSG_TEAM_MEMBERS } from './FsgSignature';
 
 export default function Navigation() {
     const location = useLocation();
@@ -16,6 +17,7 @@ export default function Navigation() {
     const [isRefreshing, setIsRefreshing] = useState(false);
     const { user } = useAuth();
     const isAdminUser = user?.role === 'admin';
+    const teamTooltip = `Alunos: ${FSG_TEAM_MEMBERS.join(' • ')}`;
 
     const HomeIcon = () => (
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,8 +110,15 @@ export default function Navigation() {
     return (
         <>
             {/* Desktop Navigation - Vertical Side Nav */}
-            <div className="hidden md:block fixed left-0 top-0 h-screen w-20 bg-theme-surface backdrop-blur-md border-r border-theme z-40">
-                <div className="flex flex-col items-center justify-center h-full space-y-8 p-4 relative">
+            <div className="hidden md:block fixed left-0 top-0 h-screen w-24 bg-theme-surface backdrop-blur-md border-r border-theme z-40">
+                <div className="flex flex-col items-center justify-center h-full p-4 relative">
+                    <div className="absolute top-6 left-0 right-0 flex justify-center">
+                        <InstantTooltip tooltip={teamTooltip} position="right">
+                            <FsgSignature orientation="column" gap="none" className="pointer-events-auto" />
+                        </InstantTooltip>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-8 mt-28">
                     {navItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = location.pathname === item.path;
@@ -162,6 +171,7 @@ export default function Navigation() {
                             </InstantTooltip>
                         );
                     })}
+                    </div>
 
                     {!isAdminRoute && (
                         <div className="absolute bottom-6 left-0 right-0 flex justify-center">
@@ -310,8 +320,13 @@ export default function Navigation() {
                         className="md:hidden fixed inset-0 bg-black/20 z-40"
                     />
 
-                    <div className="md:hidden fixed left-0 top-0 h-screen w-80 bg-theme-surface shadow-2xl z-40 transform transition-transform duration-300 ease-out">
-                        <div className="flex flex-col justify-center h-full space-y-4 p-8">
+                    <div className="md:hidden fixed left-0 top-0 h-screen w-80 bg-theme-surface shadow-2xl z-40 transform transition-transform duration-300 ease-out overflow-y-auto">
+                        <div className="flex flex-col min-h-full space-y-6 p-8">
+                            <div className="flex justify-center">
+                                <FsgSignature orientation="column" gap="none" />
+                            </div>
+
+                            <div className="flex flex-col space-y-4">
                             {navItems.map((item) => {
                                 const Icon = item.icon;
                                 const isActive = location.pathname === item.path;
@@ -343,6 +358,7 @@ export default function Navigation() {
                                     </button>
                                 );
                             })}
+                            </div>
 
                             {!isAdminRoute && (
                                 <motion.button
@@ -427,6 +443,7 @@ export default function Navigation() {
                                     </button>
                                 </div>
                             )}
+
                         </div>
                     </div>
                 </>

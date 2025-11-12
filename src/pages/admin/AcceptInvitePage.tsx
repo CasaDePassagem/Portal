@@ -1,11 +1,14 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { completeUserInvite } from '../../lib/users';
+import { FsgSignature, FSG_TEAM_MEMBERS } from '../../components/FsgSignature';
+import InstantTooltip from '../../components/InstantTooltip';
 
 export function AcceptInvitePage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') || '';
+  const teamTooltip = `Alunos: ${FSG_TEAM_MEMBERS.join(' • ')}`;
 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -44,7 +47,17 @@ export function AcceptInvitePage() {
   };
 
   return (
-    <div className="min-h-[100svh] flex items-center justify-center bg-theme-base p-6">
+    <div className="min-h-[100svh] flex items-center justify-center bg-theme-base p-6 relative">
+      <div className="absolute top-3 sm:top-4 left-4 z-10">
+        <InstantTooltip tooltip={teamTooltip} position="right">
+          <div className="hidden sm:block">
+            <FsgSignature />
+          </div>
+          <div className="flex sm:hidden">
+            <FsgSignature orientation="column" />
+          </div>
+        </InstantTooltip>
+      </div>
       <div className="w-full max-w-md bg-theme-surface border border-theme rounded-2xl shadow-xl p-6 space-y-4">
         <h1 className="text-xl font-semibold text-theme-primary">Definir senha de acesso</h1>
         {!token && (
