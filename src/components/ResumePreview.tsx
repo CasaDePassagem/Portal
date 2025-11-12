@@ -92,19 +92,19 @@ export const ResumePreview = React.forwardRef<HTMLDivElement, Props>(({ data, co
     serif: "'IBM Plex Serif', 'Source Serif Pro', 'Noto Serif', Georgia, 'Times New Roman', serif",
   };
 
-  const gaps = density === 'compact' ? { headerPad: 18, sectionTop: 14, gridGap: 12 } : { headerPad: 24, sectionTop: 20, gridGap: 20 };
+  const gaps = density === 'compact' ? { headerPad: 16, sectionTop: 12, gridGap: 10, itemGap: 8 } : { headerPad: 20, sectionTop: 16, gridGap: 16, itemGap: 10 };
 
   const Title = ({ children }: { children: React.ReactNode }) => (
-    <h3 style={{ color: p, fontWeight: 800, fontSize: 16, marginBottom: 8 }}>{children}</h3>
+    <h3 style={{ color: p, fontWeight: 800, fontSize: 15, marginBottom: 6, letterSpacing: '-0.01em' }}>{children}</h3>
   );
 
   const Divider = () => (
-    showSectionDividers ? <div style={{ height: 3, width: 40, background: p, borderRadius: 4, marginBottom: 12 }} /> : null
+    showSectionDividers ? <div style={{ height: 2.5, width: 36, background: p, borderRadius: 3, marginBottom: 10 }} /> : null
   );
 
   return (
-    <div ref={ref} {...rest} style={{ width: 794, minHeight: 1123, background: '#fff', color: '#0f172a', fontFamily: fontStacks[fontFamily] }}>
-      <div style={{ padding: 28 }}>
+    <div ref={ref} {...rest} className="resume-preview" style={{ width: 794, minHeight: 1123, background: '#fff', color: '#0f172a', fontFamily: fontStacks[fontFamily], pageBreakInside: 'avoid' }}>
+      <div style={{ padding: '32px 28px' }}>
         <div style={{ background: p, color: ht, borderRadius: 16, padding: gaps.headerPad, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexDirection: headerLayout === 'left' ? 'row-reverse' : 'row' }}>
           <div style={{ textAlign: headerLayout === 'left' ? 'right' : 'left' }}>
             <div style={{ fontSize: 28, fontWeight: 800, color: ht }}>{data.personalInfo.name || 'Seu Nome'}</div>
@@ -126,19 +126,19 @@ export const ResumePreview = React.forwardRef<HTMLDivElement, Props>(({ data, co
         {showHeaderDivider && <div style={{ height: 1, background: '#e2e8f0', marginTop: 10 }} />}
 
         {data.personalInfo.summary && (
-          <section style={{ marginTop: gaps.sectionTop + 4, breakInside: 'avoid' as React.CSSProperties['breakInside'] }}>
+          <section style={{ marginTop: gaps.sectionTop + 4, pageBreakInside: 'avoid', breakInside: 'avoid' }}>
             <Title>Resumo</Title>
             <Divider />
             <p style={{ fontSize: 12, lineHeight: '18px', color: '#334155' }}>{data.personalInfo.summary}</p>
           </section>
         )}
         {/* Content grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: gaps.gridGap, alignItems: 'start', marginTop: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: gaps.gridGap, alignItems: 'start', marginTop: 16, pageBreakInside: 'auto' }}>
           {/* Left column: Skills + Languages */}
           <div>
             {leftOrder.map((section, idx) => (
               section === 'skills' && data.skills?.length > 0 ? (
-                <section key={section} style={{ marginTop: idx === 0 ? 0 : gaps.sectionTop, breakInside: 'avoid' }}>
+                <section key={section} style={{ marginTop: idx === 0 ? 0 : gaps.sectionTop, pageBreakInside: 'avoid', breakInside: 'avoid' }}>
                   <Title>Habilidades</Title>
                   <Divider />
                   <div style={{ display: 'flex', flexWrap: 'wrap', marginRight: -6, marginBottom: -6 }}>

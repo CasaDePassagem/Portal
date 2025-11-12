@@ -189,22 +189,51 @@ export const ResumeForm = () => {
     const generatePDF = async () => {
         const target = printRef.current || previewRef.current;
         if (!target) return;
-        const canvas = await html2canvas(target, { scale: 2, backgroundColor: '#ffffff' });
+
+        // Renderizar o conteúdo em alta qualidade
+        const canvas = await html2canvas(target, {
+            scale: 2,
+            backgroundColor: '#ffffff',
+            logging: false,
+            useCORS: true,
+            allowTaint: true
+        });
+
         const imgData = canvas.toDataURL('image/png');
         const pdf = new jsPDF('p', 'pt', 'a4');
         const pageWidth = pdf.internal.pageSize.getWidth();
         const pageHeight = pdf.internal.pageSize.getHeight();
         const imgWidth = pageWidth;
         const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        const usedHeight = Math.min(imgHeight, pageHeight);
-        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, usedHeight);
+
+        // Calcular quantas páginas são necessárias
+        const totalPages = Math.ceil(imgHeight / pageHeight);
+
+        // Adicionar cada página
+        for (let page = 0; page < totalPages; page++) {
+            if (page > 0) {
+                pdf.addPage();
+            }
+
+            const yOffset = -(page * pageHeight);
+
+            pdf.addImage(
+                imgData,
+                'PNG',
+                0,
+                yOffset,
+                imgWidth,
+                imgHeight
+            );
+        }
 
         // Add clickable link annotations over the image using DOM positions
         try {
             const containerRect = target.getBoundingClientRect();
             const ratioX = pageWidth / containerRect.width;
-            const ratioY = usedHeight / containerRect.height;
+            const ratioY = imgHeight / containerRect.height;
             const anchors = Array.from(target.querySelectorAll('a[href]')) as HTMLAnchorElement[];
+
             anchors.forEach((a) => {
                 const href = a.getAttribute('href');
                 if (!href || href.startsWith('#')) return;
@@ -213,12 +242,21 @@ export const ResumeForm = () => {
                 const y = (r.top - containerRect.top) * ratioY;
                 const w = r.width * ratioX;
                 const h = r.height * ratioY;
-                (pdf as unknown as { link: (x: number, y: number, w: number, h: number, options: { url: string }) => void }).link(x, y, w, h, { url: href });
+
+                // Determinar em qual página o link está
+                const linkPage = Math.floor(y / pageHeight);
+                if (linkPage < totalPages) {
+                    pdf.setPage(linkPage + 1);
+                    const pageY = y - (linkPage * pageHeight);
+                    (pdf as unknown as { link: (x: number, y: number, w: number, h: number, options: { url: string }) => void })
+                        .link(x, pageY, w, h, { url: href });
+                }
             });
         } catch {
             // Silently ignore PDF link errors
         }
-        pdf.save(`${formData.personalInfo.name || 'cv'}-preview.pdf`);
+
+        pdf.save(`${formData.personalInfo.name || 'curriculo'}.pdf`);
     };
 
     const steps = [
@@ -264,27 +302,29 @@ export const ResumeForm = () => {
     return (
         <section className="py-20 relative overflow-hidden bg-theme-base">
 
-            <div className="relative z-10 max-w-7xl mx-auto px-6">
+            <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
                 {/* Progress Steps */}
-                <div className="mb-12 pt-16">
-                    <div className="relative mb-8">
+                <div className="mb-8 sm:mb-12 pt-12 sm:pt-16">
+                    {/* Desktop/Tablet Progress Bar */}
+                    <div className="hidden sm:block relative mb-8">
                         <div className="absolute left-0 right-0 top-6 h-0.5 bg-theme-surface-hover z-0" />
                         <div
-                            className="absolute left-0 top-6 h-0.5 z-0"
+                            className="absolute left-0 top-6 h-0.5 z-0 transition-all duration-300"
                             style={{ width: progressPercent + '%', backgroundColor: 'var(--color-primary)' }}
                         />
                         <div className="flex items-center justify-between relative z-10">
                             {steps.map((step, index) => (
                                 <div key={index} className="flex flex-col items-center relative z-10">
                                     <motion.div
-                                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors ${index <= currentStep
+                                        className={`w-12 h-12 rounded-full flex items-center justify-center border-2 transition-colors cursor-pointer ${index <= currentStep
                                             ? 'border-theme text-theme-inverted'
                                             : 'border-theme-muted text-theme-muted'
                                             }`}
                                         style={{
-                                            backgroundColor: index <= currentStep ? 'var(--color-primary)' : 'transparent'
+                                            backgroundColor: index <= currentStep ? 'var(--color-primary)' : 'var(--bg-surface)'
                                         }}
                                         whileHover={{ scale: 1.05 }}
+                                        onClick={() => setCurrentStep(index)}
                                     >
                                         <step.icon className="w-5 h-5" />
                                     </motion.div>
@@ -293,7 +333,48 @@ export const ResumeForm = () => {
                         </div>
                     </div>
 
-                    <div className="text-center">
+                    {/* Mobile Progress Bar */}
+                    <div className="sm:hidden mb-6">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="text-sm font-medium text-theme-secondary">
+                                Etapa {currentStep + 1} de {steps.length}
+                            </div>
+                            <div className="text-sm font-medium" style={{ color: 'var(--color-primary)' }}>
+                                {Math.round(progressPercent)}%
+                            </div>
+                        </div>
+                        <div className="h-2 bg-theme-surface-hover rounded-full overflow-hidden">
+                            <motion.div
+                                className="h-full rounded-full"
+                                style={{ backgroundColor: 'var(--color-primary)' }}
+                                initial={{ width: 0 }}
+                                animate={{ width: progressPercent + '%' }}
+                                transition={{ duration: 0.3 }}
+                            />
+                        </div>
+                        <div className="flex items-center gap-3 mt-4 p-3 rounded-lg bg-theme-surface border border-theme">
+                            <div
+                                className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                                style={{ backgroundColor: 'var(--color-primary)' }}
+                            >
+                                {(() => {
+                                    const StepIcon = steps[currentStep].icon;
+                                    return <StepIcon className="w-5 h-5 text-white" />;
+                                })()}
+                            </div>
+                            <div className="min-w-0">
+                                <h3 className="text-base font-semibold text-theme-primary truncate">
+                                    {steps[currentStep].title}
+                                </h3>
+                                <p className="text-xs text-theme-secondary truncate">
+                                    {steps[currentStep].description}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Desktop/Tablet Title */}
+                    <div className="hidden sm:block text-center">
                         <h3 className="text-2xl font-bold text-theme-primary mb-2">
                             {steps[currentStep].title}
                         </h3>
@@ -1255,28 +1336,30 @@ export const ResumeForm = () => {
                 </AnimatePresence>
 
                 {/* Navigation */}
-                <div className="flex justify-between mt-8">
+                <div className="flex justify-between gap-3 mt-8">
                     <button
                         onClick={prevStep}
                         disabled={currentStep === 0}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold ${currentStep === 0
+                        className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-full font-semibold text-sm sm:text-base ${currentStep === 0
                             ? 'bg-theme-muted/20 text-theme-muted cursor-not-allowed'
                             : 'bg-theme-surface text-theme-primary border border-theme hover:bg-theme-surface/80'
                             } transition-all duration-300`}
                     >
                         <ChevronLeft className="w-4 h-4" />
-                        Anterior
+                        <span className="hidden xs:inline">Anterior</span>
+                        <span className="xs:hidden">Voltar</span>
                     </button>
 
                     <button
                         onClick={nextStep}
                         disabled={currentStep === steps.length - 1}
-                        className={`flex items-center gap-2 px-6 py-3 rounded-full font-semibold ${currentStep === steps.length - 1
+                        className={`flex items-center gap-2 px-4 sm:px-6 py-3 rounded-full font-semibold text-sm sm:text-base ${currentStep === steps.length - 1
                             ? 'bg-theme-muted/20 text-theme-muted cursor-not-allowed'
                             : 'btn-primary hover:shadow-lg'
                             } transition-all duration-300`}
                     >
-                        Próximo
+                        <span className="hidden xs:inline">Próximo</span>
+                        <span className="xs:hidden">Avançar</span>
                         <ChevronRight className="w-4 h-4" />
                     </button>
                 </div>

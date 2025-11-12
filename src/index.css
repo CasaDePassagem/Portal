@@ -212,3 +212,51 @@ summary {
 .themed-datepicker .react-datepicker__triangle {
   border-bottom-color: var(--bg-surface) !important;
 }
+
+/* Estilos para impressão e geração de PDF - Currículo */
+@media print {
+
+  /* Evitar quebras de página dentro de seções */
+  section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Permitir quebra entre seções se necessário */
+  section+section {
+    page-break-before: auto;
+    break-before: auto;
+  }
+
+  /* Evitar linhas órfãs e viúvas */
+  p,
+  li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Manter títulos com conteúdo seguinte */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+}
+
+/* Estilos também para renderização via html2canvas */
+.resume-preview section {
+  page-break-inside: avoid !important;
+  break-inside: avoid !important;
+}
+
+.resume-preview h1,
+.resume-preview h2,
+.resume-preview h3,
+.resume-preview h4 {
+  page-break-after: avoid !important;
+  break-after: avoid !important;
+}
