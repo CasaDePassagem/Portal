@@ -87,7 +87,7 @@ export function ContentCard({
             <div className="p-4 space-y-2">
                 <h3 className="font-semibold text-base leading-tight line-clamp-2">{content.title}</h3>
                 {content.description && (
-                    <p className="text-sm text-theme-secondary line-clamp-3">{content.description}</p>
+                    <p className="text-sm text-theme-secondary whitespace-pre-line text-pretty">{content.description}</p>
                 )}
             </div>
         </div>

@@ -844,7 +844,7 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
           <div className='flex flex-col min-w-0'>
             <span className='font-semibold text-theme-primary truncate'>{field.label}</span>
             {field.description && (
-              <span className='text-xs text-theme-secondary truncate'>{field.description}</span>
+              <span className='text-xs text-theme-secondary whitespace-pre-line text-pretty'>{field.description}</span>
             )}
           </div>
           <span
@@ -876,7 +876,7 @@ export function ParticipantNotebookModal({ isOpen, onClose, participant }: Props
               )}
             </div>
             {field.description && (
-              <p className='text-xs text-theme-secondary mt-1'>{field.description}</p>
+              <p className='text-xs text-theme-secondary mt-1 whitespace-pre-line text-pretty'>{field.description}</p>
             )}
           </div>
           <div className='flex items-center gap-2'>
