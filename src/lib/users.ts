@@ -35,6 +35,7 @@ export interface CreateUserInput {
   fullName: string;
   password: string;
   role?: UserRole;
+  isActive?: boolean;
 }
 
 export interface UpdateUserInput {
