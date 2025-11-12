@@ -22,6 +22,9 @@ import {
   remoteRequestPasswordReset,
   remoteVerifyPassword,
   remoteUpdateRecord,
+  remoteGenerateUserInvite,
+  remoteResendUserInvite,
+  remoteCompleteInvite,
 } from './remoteStore';
 import type { UserRecord, UserRole } from './types';
 
@@ -32,7 +35,6 @@ export interface CreateUserInput {
   fullName: string;
   password: string;
   role?: UserRole;
-  isActive?: boolean;
 }
 
 export interface UpdateUserInput {
@@ -134,7 +136,7 @@ export async function createUser(
       email: input.email.trim(),
       fullName: input.fullName.trim() || input.email.trim(),
       role: input.role ?? 'user',
-      isActive: input.isActive ?? true,
+      isActive: input.isActive ?? false,
     };
     if (hashedPassword) {
       remoteRecord.passwordHash = hashedPassword;
@@ -161,7 +163,7 @@ export async function createUser(
     fullName: input.fullName.trim() || input.email.trim(),
     password: input.password,
     role: input.role ?? 'user',
-    isActive: input.isActive ?? true,
+    isActive: input.isActive ?? false,
   });
 
   const { passwordHash, ...user } = record;
@@ -205,10 +207,10 @@ export async function updateUser(uid: string, input: UpdateUserInput) {
   }
 }
 
-export async function deleteUser(uid: string) {
+export async function deleteUser(uid: string, options?: { hard?: boolean }) {
   removeUser(uid);
   if (isBackendAvailable()) {
-    await remoteDeleteRecord('users', uid);
+    await remoteDeleteRecord('users', uid, { hard: options?.hard ?? false });
     await hydrateFromRemote();
   }
 }
@@ -328,6 +330,28 @@ export async function confirmPasswordReset(params: { token: string; otp: string;
     await remoteConfirmPasswordReset(params.token, params.otp, params.newPassword);
     await hydrateFromRemote();
   }
+}
+
+export async function sendUserInvite(email: string, baseUrl: string): Promise<void> {
+  if (!email.trim()) throw new Error('Email é obrigatório');
+  if (!baseUrl.trim()) throw new Error('URL inválida');
+  if (!isBackendAvailable()) throw new Error('Convites indisponíveis offline');
+  await remoteGenerateUserInvite(email.trim().toLowerCase(), baseUrl.trim());
+}
+
+export async function resendUserInvite(email: string, baseUrl: string): Promise<void> {
+  if (!email.trim()) throw new Error('Email é obrigatório');
+  if (!baseUrl.trim()) throw new Error('URL inválida');
+  if (!isBackendAvailable()) throw new Error('Convites indisponíveis offline');
+  await remoteResendUserInvite(email.trim().toLowerCase(), baseUrl.trim());
+}
+
+export async function completeUserInvite(token: string, newPassword: string): Promise<void> {
+  if (!token.trim()) throw new Error('Convite inválido');
+  if (newPassword.length < 6) throw new Error('Senha deve ter pelo menos 6 caracteres');
+  if (!isBackendAvailable()) throw new Error('BACKEND indisponível');
+  await remoteCompleteInvite(token.trim(), newPassword);
+  await hydrateFromRemote();
 }
 
 export async function requestAdminOtp(purpose: string): Promise<{ token: string; expiresIn: number }> {

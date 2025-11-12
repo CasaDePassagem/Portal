@@ -2,15 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     X,
-    Eye,
-    EyeOff,
     AlertCircle,
     UserPlus,
     ShieldCheck,
     ShieldOff,
     Ban,
     RefreshCw,
-    BadgeCheck
+    BadgeCheck,
+    Trash2
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -19,6 +18,9 @@ import {
     updateUser,
     fetchAllUsers,
     requestAdminOtp,
+    sendUserInvite,
+    resendUserInvite,
+    deleteUser,
     type UserRecord
 } from '../lib/users';
 
@@ -45,11 +47,7 @@ export function CreateUserModal({
     const [firstName, setFirstName] = useState('');
     const [lastName, setLastName] = useState('');
     const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
     const [isAdmin, setIsAdmin] = useState(false);
-    const [isActive, setIsActive] = useState(true);
-    const [showPassword, setShowPassword] = useState(false);
     const [search, setSearch] = useState('');
     const [viewMode, setViewMode] = useState<'list' | 'create'>('list');
 
@@ -63,6 +61,8 @@ export function CreateUserModal({
     const [otpSecondsLeft, setOtpSecondsLeft] = useState(0);
     const [otpCode, setOtpCode] = useState('');
     const [otpLoading, setOtpLoading] = useState(false);
+    const [resendingInviteFor, setResendingInviteFor] = useState<string | null>(null);
+    const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
     useEffect(() => {
         if (!isOpen) {
@@ -86,6 +86,18 @@ export function CreateUserModal({
                 .some((value) => value!.toLowerCase().includes(key))
         ));
     }, [users, search]);
+
+    const buildInviteBaseUrl = () => {
+        const base = new URL(import.meta.env.BASE_URL || '/', window.location.origin);
+        return base.toString().replace(/\/+$/, '');
+    };
+
+    const generateTempPassword = () => {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+        }
+        return `Temp-${Math.random().toString(36).slice(2, 10)}`;
+    };
 
     const openCreateView = () => {
         setLocalError('');
@@ -116,17 +128,15 @@ export function CreateUserModal({
         setFirstName('');
         setLastName('');
         setEmail('');
-        setPassword('');
-        setConfirmPassword('');
         setIsAdmin(false);
-        setIsActive(true);
-        setShowPassword(false);
         setLocalError('');
         setOtpToken('');
         setOtpExpiresAt(null);
         setOtpSecondsLeft(0);
         setOtpCode('');
         setOtpLoading(false);
+        setResendingInviteFor(null);
+        setDeletingUserId(null);
     };
 
     const handleClose = () => {
@@ -165,19 +175,10 @@ export function CreateUserModal({
         const safeFirst = firstName.trim();
         const safeLast = lastName.trim();
         const fullName = [safeFirst, safeLast].filter(Boolean).join(' ').trim();
+        const normalizedEmail = email.trim();
 
-        if (!email.trim() || !password) {
-            setLocalError('Email e senha são obrigatórios');
-            return;
-        }
-
-        if (password.length < 6) {
-            setLocalError('A senha deve ter pelo menos 6 caracteres');
-            return;
-        }
-
-        if (password !== confirmPassword) {
-            setLocalError('As senhas não conferem');
+        if (!normalizedEmail) {
+            setLocalError('Email é obrigatório');
             return;
         }
 
@@ -202,20 +203,23 @@ export function CreateUserModal({
         }
 
         setIsCreating(true);
+        const passwordForCreation = generateTempPassword();
+        const baseUrl = buildInviteBaseUrl();
 
         try {
             await createUser({
-                email: email.trim(),
-                fullName: fullName || email.trim(),
-                password,
+                email: normalizedEmail,
+                fullName: fullName || normalizedEmail,
+                password: passwordForCreation,
                 role: isAdmin ? 'admin' : 'user',
-                isActive,
             }, {
                 adminOtp: {
                     token: otpToken,
                     code: otpCode.trim(),
                 },
             });
+
+            await sendUserInvite(normalizedEmail, baseUrl);
 
             try {
                 const refreshed = await fetchAllUsers();
@@ -224,8 +228,8 @@ export function CreateUserModal({
                 console.warn('Não foi possível atualizar a lista imediatamente:', refreshError);
             }
 
-            const createdName = fullName || email.trim();
-            const message = `${createdName} cadastrado com sucesso${isAdmin ? ' como administrador' : ''}.`;
+            const createdName = fullName || normalizedEmail;
+            const message = `${createdName} cadastrado com sucesso${isAdmin ? ' como administrador' : ''}. Enviamos o link para definir a senha.`;
             setLocalSuccess(message);
             onSuccess(message);
             onUserCreated();
@@ -301,6 +305,52 @@ export function CreateUserModal({
             onError(msg);
         } finally {
             setUpdatingStatusFor(null);
+        }
+    };
+
+    const resendInvite = async (record: UserRecord) => {
+        if (!record.email) {
+        setLocalError('Usuário sem e-mail não pode receber convite.');
+        onError('Usuário sem e-mail não pode receber convite.');
+        return;
+    }
+    setResendingInviteFor(record.uid);
+        setLocalError('');
+        setLocalSuccess('');
+        try {
+            await resendUserInvite(record.email, buildInviteBaseUrl());
+            const msg = `Novo link enviado para ${record.email}.`;
+            setLocalSuccess(msg);
+            onSuccess(msg);
+        } catch (error) {
+            console.error('Erro ao reenviar convite:', error);
+            const msg = 'Não foi possível reenviar o convite.';
+            setLocalError(msg);
+            onError(msg);
+        } finally {
+            setResendingInviteFor(null);
+        }
+    };
+
+    const handleDeleteUser = async (record: UserRecord) => {
+        if (!window.confirm(`Remover ${record.fullName || record.email}? Esta ação não pode ser desfeita.`)) {
+            return;
+        }
+        setDeletingUserId(record.uid);
+        setLocalError('');
+        setLocalSuccess('');
+        try {
+            await deleteUser(record.uid, { hard: true });
+            const msg = `${record.fullName || record.email} foi removido.`;
+            setLocalSuccess(msg);
+            onSuccess(msg);
+        } catch (error) {
+            console.error('Erro ao remover usuário:', error);
+            const msg = 'Não foi possível remover o usuário.';
+            setLocalError(msg);
+            onError(msg);
+        } finally {
+            setDeletingUserId(null);
         }
     };
 
@@ -431,7 +481,7 @@ export function CreateUserModal({
                                                             {record.role === 'admin' ? 'Administrador' : 'Padrão'}
                                                         </span>
                                                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${record.isActive ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:bg-emerald-500/15 dark:text-emerald-200 dark:border-emerald-500/30' : 'bg-red-500/10 text-red-600 border border-red-500/20 dark:bg-red-500/15 dark:text-red-200 dark:border-red-500/30'}`}>
-                                                            {record.isActive ? 'Ativo' : 'Inativo'}
+                                                            {record.isActive ? 'Ativo' : 'Sem acesso'}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -483,6 +533,42 @@ export function CreateUserModal({
                                                                 <>
                                                                     <ShieldCheck className="w-4 h-4" />
                                                                     Reativar acesso
+                                                                </>
+                                                            )}
+                                                        </button>
+                                                        {!record.hasPassword && (
+                                                            <button
+                                                                onClick={() => resendInvite(record)}
+                                                                disabled={Boolean(resendingInviteFor) || !record.email}
+                                                                className={`flex-1 min-w-[160px] px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2 border-blue-500/40 text-blue-600 hover:bg-blue-500/10 dark:border-blue-400/40 dark:text-blue-200 dark:hover:bg-blue-400/10 ${resendingInviteFor ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                            >
+                                                                {resendingInviteFor === record.uid ? (
+                                                                    <>
+                                                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                                                        Reenviando...
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <UserPlus className="w-4 h-4" />
+                                                                        Reenviar convite
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        )}
+                                                        <button
+                                                            onClick={() => handleDeleteUser(record)}
+                                                            disabled={Boolean(deletingUserId)}
+                                                            className={`flex-1 min-w-[160px] px-4 py-2 rounded-lg border text-sm font-medium transition-colors flex items-center justify-center gap-2 border-red-500/40 text-red-600 hover:bg-red-500/10 dark:border-red-400/40 dark:text-red-200 dark:hover:bg-red-400/10 ${deletingUserId ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                                        >
+                                                            {deletingUserId === record.uid ? (
+                                                                <>
+                                                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                                                    Removendo...
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                    Remover usuário
                                                                 </>
                                                             )}
                                                         </button>
@@ -545,36 +631,10 @@ export function CreateUserModal({
                                     />
                                 </div>
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                        <label className="block text-xs font-medium mb-1 text-theme-primary">Senha provisória</label>
-                                        <div className="relative">
-                                            <input
-                                                type={showPassword ? 'text' : 'password'}
-                                                value={password}
-                                                onChange={(e) => setPassword(e.target.value)}
-                                                placeholder="Mínimo 6 caracteres"
-                                                className="w-full px-3 py-2 pr-10 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowPassword((prev) => !prev)}
-                                                className="absolute right-3 top-1/2 -translate-y-1/2 text-theme-secondary hover:text-theme-primary"
-                                            >
-                                                {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                                            </button>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-medium mb-1 text-theme-primary">Confirmar senha</label>
-                                        <input
-                                            type="password"
-                                            value={confirmPassword}
-                                            onChange={(e) => setConfirmPassword(e.target.value)}
-                                            placeholder="Repita a senha"
-                                            className="w-full px-3 py-2 border border-theme rounded-lg bg-theme-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                        />
-                                    </div>
+                                <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 text-xs text-theme-secondary space-y-1">
+                                    <p className="text-sm font-medium text-theme-primary">Convite automático</p>
+                                    <p>Assim que salvarmos o usuário, enviaremos um link seguro para o e-mail informado definir a primeira senha.</p>
+                                    <p>O acesso só é liberado depois que ele concluir esse passo.</p>
                                 </div>
 
                                 {otpToken ? (
@@ -616,7 +676,7 @@ export function CreateUserModal({
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
                                     <label className="inline-flex items-center gap-2 text-sm text-theme-secondary">
                                         <input
                                             type="checkbox"
@@ -626,23 +686,14 @@ export function CreateUserModal({
                                         />
                                         Tornar administrador
                                     </label>
-                                    <label className="inline-flex items-center gap-2 text-sm text-theme-secondary">
-                                        <input
-                                            type="checkbox"
-                                            checked={isActive}
-                                            onChange={(e) => setIsActive(e.target.checked)}
-                                            className="rounded border-theme text-emerald-500 focus:ring-emerald-500"
-                                        />
-                                        Habilitar acesso imediato
-                                    </label>
                                 </div>
 
-                                <div className="bg-amber-500/10 border border-amber-500/20 p-3 rounded-lg text-xs text-theme-secondary dark:bg-amber-500/15 dark:border-amber-500/30 dark:text-amber-100">
+                                <div className="bg-blue-500/10 border border-blue-500/20 p-3 rounded-lg text-xs text-theme-secondary dark:bg-blue-500/15 dark:border-blue-500/30 dark:text-blue-100">
                                     <div className="flex items-start gap-2">
-                                        <AlertCircle size={14} className="text-amber-600 mt-[2px]" />
+                                        <AlertCircle size={14} className="text-blue-600 mt-[2px]" />
                                         <div>
-                                            <p className="text-theme-primary font-medium">Importante</p>
-                                            <p>Após criar o usuário, ele receberá acesso imediato com a senha provisória informada. Oriente o novo usuário a trocar a senha no primeiro acesso.</p>
+                                            <p className="text-theme-primary font-medium">Convite obrigatório</p>
+                                            <p>O usuário só terá acesso após definir a própria senha pelo link enviado. Criamos a conta como inativa e ativamos automaticamente quando o convite for concluído.</p>
                                         </div>
                                     </div>
                                 </div>

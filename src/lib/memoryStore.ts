@@ -569,6 +569,7 @@ export function insertUser(data: {
     fullName: data.fullName.trim(),
     role: data.role,
     isActive: data.isActive,
+    hasPassword: Boolean(data.password),
     createdAt: now,
     updatedAt: now,
     passwordHash: '', // Será preenchido pelo backend
@@ -589,6 +590,7 @@ export function setUserPassword(uid: string, password: string) {
   const user = store.users.find((item) => item.uid === uid);
   if (!user) return;
   user.passwordHash = bcrypt.hashSync(password, 10);
+  user.hasPassword = true;
   user.updatedAt = new Date();
   emitUsers();
 }
@@ -880,6 +882,7 @@ export function exportStore(): DataStoreDump {
       fullName: user.fullName,
       role: user.role,
       isActive: user.isActive,
+      hasPassword: user.hasPassword ?? Boolean(user.passwordHash),
       passwordHash: user.passwordHash,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString(),
@@ -996,6 +999,7 @@ export function importStore(dump: DataStoreDump) {
 
   store.users = dump.users.map((user) => ({
     ...user,
+    hasPassword: user.hasPassword ?? Boolean((user as any).passwordHash),
     createdAt: new Date(user.createdAt),
     updatedAt: new Date(user.updatedAt),
   }));

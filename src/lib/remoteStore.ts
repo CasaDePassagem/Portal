@@ -342,3 +342,41 @@ export async function remoteRequestAdminOtp(purpose: string) {
     expiresIn: Number(data.expiresIn || 300),
   };
 }
+
+export async function remoteGenerateUserInvite(email: string, baseUrl: string) {
+  if (!isRemoteEnabled()) return;
+  await postAction(
+    {
+      action: 'auth_invite_generate',
+      email,
+      baseUrl,
+    },
+    { requireNonce: true },
+  );
+}
+
+export async function remoteResendUserInvite(email: string, baseUrl: string) {
+  if (!isRemoteEnabled()) return;
+  await postAction(
+    {
+      action: 'auth_invite_resend',
+      email,
+      baseUrl,
+    },
+    { requireNonce: true },
+  );
+}
+
+export async function remoteCompleteInvite(token: string, newPassword: string) {
+  if (!isRemoteEnabled()) {
+    throw new Error('BACKEND indisponível');
+  }
+  await postAction(
+    {
+      action: 'auth_invite_confirm',
+      token,
+      newPassword,
+    },
+    { requireNonce: false },
+  );
+}

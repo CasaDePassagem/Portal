@@ -1,5 +1,5 @@
 
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { HomePage } from './pages/principal/HomePage';
 import { TutorialPage } from './pages/principal/TutorialPage';
@@ -9,6 +9,7 @@ import { LoginPage } from './pages/admin/LoginPage';
 import { DashboardPage } from './pages/admin/DashboardPage';
 import { ParticipantsPage } from './pages/admin/ParticipantsPage';
 import { PasswordResetPage } from './pages/admin/PasswordResetPage';
+import { AcceptInvitePage } from './pages/admin/AcceptInvitePage';
 import { ProtectedRoute } from './routes/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 import { CoursesPage } from './pages/principal/CoursesPage';
@@ -28,6 +29,7 @@ function AnimatedRoutes() {
         <Route path="/cursos" element={<CoursesPage />} />
         <Route path="/admin" element={<LoginPage />} />
         <Route path="/resetar-senha" element={<PasswordResetPage />} />
+        <Route path="/aceitar-convite" element={<AcceptInvitePage />} />
         <Route element={<ProtectedRoute />}>
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/dashboard/participants" element={<ParticipantsPage />} />
@@ -40,7 +42,8 @@ function AnimatedRoutes() {
 function AppShell() {
   const location = useLocation();
   const pathname = location.pathname;
-  const hideNav = pathname === '/admin' || pathname === '/resetar-senha';
+  const hideNav = pathname === '/admin' || pathname === '/resetar-senha' || pathname === '/aceitar-convite';
+  const showReturnHome = hideNav; // mesmas telas sem navegação
   const isAdminView = pathname.startsWith('/dashboard');
   const { signOut, user } = useAuth();
 
@@ -51,6 +54,15 @@ function AppShell() {
   return (
     <div className="min-h-[100svh] bg-theme-base transition-colors duration-300">
       {!isAdminView && <ThemeSwitch />}
+      {showReturnHome && (
+        <Link
+          to="/"
+          className="fixed top-4 right-24 md:top-6 md:right-32 z-30 inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-theme bg-theme-base/80 backdrop-blur text-sm font-medium text-theme-primary hover:bg-theme-surface transition-colors"
+        >
+          <span aria-hidden="true">←</span>
+          Voltar para o site
+        </Link>
+      )}
       {isAdminView && user && (
         <div className="fixed top-4 right-4 md:top-6 md:right-6 z-30 flex items-center gap-2">
           <ThemeSwitch fixed={false} />

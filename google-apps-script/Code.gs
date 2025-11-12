@@ -474,6 +474,9 @@ function doPost(e){
   if (action === 'auth_password_reset_request') return handleAuthPasswordResetRequest(body, e);
   if (action === 'auth_password_reset_confirm') return handleAuthPasswordResetConfirm(body, e);
   if (action === 'auth_admin_otp_request') return handleAdminOtpRequest(body, e);
+  if (action === 'auth_invite_generate') return handleAuthInviteGenerate(body, e);
+  if (action === 'auth_invite_resend') return handleAuthInviteResend(body, e);
+  if (action === 'auth_invite_confirm') return handleAuthInviteConfirm(body);
 
   // Nonce (reforço para escrita)
   const table = body.table;
@@ -811,6 +814,96 @@ function ensureAdminOtp(actor, token, code, purpose){
   return { ok:true };
 }
 
+function ensureUserActiveFlag(uid, active){
+  if (!uid) return false;
+  const { sheet, headers } = getSheetAndHeaders('users');
+  const idx = findRowByKey(sheet, headers, SCHEMA.users.key, uid);
+  if (idx <= 0) return false;
+  const currentSheet = getRowObject(sheet, headers, idx);
+  const currentClient = fromSheetRecord('users', currentSheet);
+  currentClient.isActive = !!active;
+  const updatedSheet = validateRecord('users', toSheetRecord('users', currentClient));
+  const updatedKey = toSheetKey('users', 'updatedAt');
+  if (headers.includes(updatedKey)) updatedSheet[updatedKey] = nowStr();
+  writeRow(sheet, headers, idx, updatedSheet);
+  return true;
+}
+
+function generateInviteForUser(user, baseUrl){
+  const token = Utilities.getUuid();
+  const expiresAt = Date.now() + INVITE_TTL_SEC * 1000;
+  persistInviteToken(token, {
+    uid: user.uid,
+    email: user.email,
+    baseUrl,
+    expiresAt,
+  });
+  const link = buildInviteLink(baseUrl, token);
+  sendEmail({
+    to: user.email,
+    subject: 'Convite - Portal Casa de Apoio',
+    htmlBody: inviteEmailHtml(link),
+    textBody: 'Defina sua senha acessando: '+link,
+  });
+  return { token, expiresIn: INVITE_TTL_SEC };
+}
+
+function handleAuthInviteGenerate(body, e){
+  const actor = getActorFromRequest(e, body);
+  if (!actor) return buildResponse({ ok:false, error:'unauthenticated' }, 401);
+  if (actor.role !== 'admin') return buildResponse({ ok:false, error:'forbidden' }, 403);
+  const email = String(body.email || '').trim().toLowerCase();
+  const baseUrl = String(body.baseUrl || '').trim();
+  if (!email || !baseUrl) return buildResponse({ ok:false, error:'missing_parameters' }, 400);
+  const user = findUserByEmail(email);
+  if (!user) return buildResponse({ ok:false, error:'not_found' }, 404);
+  const invite = generateInviteForUser(user, baseUrl);
+  return buildResponse({ ok:true, token: invite.token, expiresIn: invite.expiresIn }, 200);
+}
+
+function handleAuthInviteResend(body, e){
+  const actor = getActorFromRequest(e, body);
+  if (!actor) return buildResponse({ ok:false, error:'unauthenticated' }, 401);
+  if (actor.role !== 'admin') return buildResponse({ ok:false, error:'forbidden' }, 403);
+  const email = String(body.email || '').trim().toLowerCase();
+  const baseUrl = String(body.baseUrl || '').trim();
+  if (!email || !baseUrl) return buildResponse({ ok:false, error:'missing_parameters' }, 400);
+  const user = findUserByEmail(email);
+  if (!user) return buildResponse({ ok:false, error:'not_found' }, 404);
+  const invite = generateInviteForUser(user, baseUrl);
+  return buildResponse({ ok:true, token: invite.token, expiresIn: invite.expiresIn }, 200);
+}
+
+function handleAuthInviteConfirm(body){
+  const token = String(body.token || '').trim();
+  const newPassword = String(body.newPassword || '').trim();
+  if (!token || newPassword.length < 6) return buildResponse({ ok:false, error:'missing_parameters' }, 400);
+  const invite = readInviteToken(token);
+  if (!invite) return buildResponse({ ok:false, error:'invite_expired' }, 400);
+  const user = getById('users', invite.uid);
+  if (!user) {
+    deleteInviteToken(token);
+    return buildResponse({ ok:false, error:'not_found' }, 404);
+  }
+  const hashed = encodeHash(newPassword);
+  const { sheet, headers } = getSheetAndHeaders('users');
+  const idx = findRowByKey(sheet, headers, SCHEMA.users.key, invite.uid);
+  if (idx <= 0) {
+    deleteInviteToken(token);
+    return buildResponse({ ok:false, error:'not_found' }, 404);
+  }
+  const currentSheet = getRowObject(sheet, headers, idx);
+  const currentClient = fromSheetRecord('users', currentSheet);
+  currentClient.passwordHash = hashed;
+  currentClient.isActive = true;
+  const updatedSheet = validateRecord('users', toSheetRecord('users', currentClient));
+  const updatedKey = toSheetKey('users', 'updatedAt');
+  if (headers.includes(updatedKey)) updatedSheet[updatedKey] = nowStr();
+  writeRow(sheet, headers, idx, updatedSheet);
+  deleteInviteToken(token);
+  return buildResponse({ ok:true }, 200);
+}
+
 // hashing simples (HMAC-SHA256 com salt aleatório)
 function makeSalt(){ return Utilities.base64Encode(Utilities.getUuid().slice(0,16)); }
 function hmac(password, saltB64){
@@ -840,6 +933,7 @@ const OTP_TTL_SEC = 5 * 60; // 5 minutos
 const RESET_TTL_SEC = 10 * 60; // 10 minutos
 const ADMIN_OTP_TTL_SEC = 5 * 60;
 const OTP_MAX_ATTEMPTS = 5;
+const INVITE_TTL_SEC = 3 * 24 * 60 * 60; // 72h
 
 function otpCache(){ return CacheService.getScriptCache(); }
 function otpCacheKey(prefix, token){ return prefix + token; }
@@ -908,6 +1002,41 @@ function adminOtpEmailHtml(code, purpose){
     + '<p>Código para '+purposeText+':</p>'
     + '<p style="font-size:28px;font-weight:700;letter-spacing:4px;margin:16px 0;color:#1d4ed8">'+code+'</p>'
     + '<p style="font-size:12px;color:#475569">O código expira em 5 minutos. Se você não solicitou, não compartilhe e comunique o responsável.</p>'
+    + '</div>';
+}
+
+function inviteStore(){ return PropertiesService.getScriptProperties(); }
+function inviteKey(token){ return 'invite:'+token; }
+function persistInviteToken(token, record){ inviteStore().setProperty(inviteKey(token), JSON.stringify(record)); }
+function readInviteToken(token){
+  if (!token) return null;
+  const raw = inviteStore().getProperty(inviteKey(token));
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw);
+    if (data.expiresAt && Date.now() > data.expiresAt) {
+      deleteInviteToken(token);
+      return null;
+    }
+    return data;
+  } catch (_) {
+    deleteInviteToken(token);
+    return null;
+  }
+}
+function deleteInviteToken(token){ if (!token) return; inviteStore().deleteProperty(inviteKey(token)); }
+function buildInviteLink(baseUrl, token){
+  const clean = String(baseUrl || '/').replace(/\/+$/, '');
+  const root = clean || '/';
+  const suffix = '/aceitar-convite?token=' + encodeURIComponent(token);
+  return root === '/' ? suffix : root + suffix;
+}
+function inviteEmailHtml(link){
+  return '<div style="font-family:Arial,Helvetica,sans-serif;line-height:1.6;color:#0f172a">'
+    + '<h2 style="margin:0 0 16px;font-size:20px;color:#1d4ed8">Você foi convidado</h2>'
+    + '<p>Para acessar o Portal Casa de Apoio, defina sua senha através do link abaixo:</p>'
+    + '<p style="margin:16px 0"><a href="'+link+'" style="display:inline-block;padding:12px 20px;background:#1d4ed8;color:#fff;font-weight:600;border-radius:8px;text-decoration:none">Escolher minha senha</a></p>'
+    + '<p style="font-size:12px;color:#475569">O convite expira em 72 horas. Se você não esperava este e-mail, ignore-o.</p>'
     + '</div>';
 }
 
@@ -1504,7 +1633,12 @@ function verifyRecaptcha(token){
 /***** ================= SANITIZE USERS ================= *****/
 
 function sanitizeUsers(rows){ return rows.map(sanitizeUser); }
-function sanitizeUser(u){ const { passwordHash, ...safe } = u || {}; return safe; }
+function sanitizeUser(u){
+  if (!u) return {};
+  const { passwordHash, hashSenha, ...safe } = u;
+  safe.hasPassword = Boolean(passwordHash || hashSenha);
+  return safe;
+}
 
 /***** ================= UTIL EXTRA: garantir cabeçalho/validações (opcional) ================= *****/
 // Rode 1x para ajustar cabeçalho/validações sem apagar dados

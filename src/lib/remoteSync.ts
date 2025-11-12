@@ -45,6 +45,11 @@ function normalizeUsers(rows: Array<Record<string, unknown>> = []) {
       fullName: String(row.fullName ?? ''),
       role: (row.role === 'admin' ? 'admin' : 'user') as UserRole,
       isActive: row.isActive === true || row.isActive === 'true' || String(row.isActive) === '1',
+      hasPassword:
+        row.hasPassword === true ||
+        row.hasPassword === 'true' ||
+        String(row.hasPassword || '') === '1' ||
+        Boolean(row.passwordHash),
       passwordHash:
         typeof row.passwordHash === 'string'
           ? row.passwordHash

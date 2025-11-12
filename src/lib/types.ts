@@ -6,6 +6,7 @@ export interface UserRecord {
   fullName: string;
   role: UserRole;
   isActive: boolean;
+  hasPassword?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
